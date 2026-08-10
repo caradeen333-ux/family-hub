@@ -89,6 +89,9 @@ async function handleAuthRedirect() {
     // Electron preload injects the secret (never in public code)
     if (window.__electron?.clientSecret) {
       body.set('client_secret', window.__electron.clientSecret);
+      console.log('Auth: using Electron-injected client secret');
+    } else {
+      console.warn('Auth: no client secret available — token exchange may fail');
     }
 
     const response = await fetch('https://oauth2.googleapis.com/token', {

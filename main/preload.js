@@ -1,9 +1,17 @@
-// preload.js — Exposes client secret to renderer
-// Secret is bundled in the .exe, not publicly visible unless someone
-// decompiles the installer. Secret alone grants zero access without
-// a valid OAuth refresh token (which lives in the user's browser).
+// preload.js — loads client secret from gitignored secrets.js
 const { contextBridge } = require('electron');
 
+let clientSecret = '';
+try {
+  // secrets.js is gitignored but bundled in the .exe via electron-builder
+  const secrets = require('./secrets');
+  clientSecret = secrets.clientSecret || '';
+} catch (e) {
+  console.warn('[preload] secrets.js not found — OAuth may fail');
+}
+
+console.log('[preload] clientSecret available:', !!clientSecret);
+
 contextBridge.exposeInMainWorld('__electron', {
-  clientSecret: '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',
+  clientSecret: clientSecret,
 });
