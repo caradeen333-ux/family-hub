@@ -31,20 +31,32 @@ function getAccessToken() {
 // Initialize GIS token client (called once on load if library is available)
 function initTokenClient() {
   if (!window.google?.accounts?.oauth2) {
-    console.warn('Google GIS library not loaded yet');
+    console.warn('Google GIS library not loaded yet, retrying...');
+    setTimeout(initTokenClient, 500);
     return;
   }
 
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CONFIG.clientId,
-    scope: [
-      'https://www.googleapis.com/auth/calendar.readonly',
-      'https://www.googleapis.com/auth/calendar.events',
-      'https://www.googleapis.com/auth/spreadsheets',
-    ].join(' '),
-    callback: handleTokenResponse,
-    error_callback: handleTokenError,
-  });
+  try {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CONFIG.clientId,
+      scope: [
+        'https://www.googleapis.com/auth/calendar.readonly',
+        'https://www.googleapis.com/auth/calendar.events',
+        'https://www.googleapis.com/auth/spreadsheets',
+      ].join(' '),
+      callback: (resp) => {
+        console.log('Token callback:', resp?.error || 'success');
+        handleTokenResponse(resp);
+      },
+      error_callback: (err) => {
+        console.error('Token error callback:', err);
+        handleTokenError(err);
+      },
+    });
+    console.log('Token client initialized');
+  } catch (e) {
+    console.error('Failed to init token client:', e);
+  }
 }
 
 // Called when user clicks "Sign in with Google"
@@ -63,7 +75,7 @@ function signIn() {
     throw new Error('Google sign-in library not loaded. Check your internet connection.');
   }
 
-  tokenClient.requestAccessToken({ prompt: 'consent' });
+  tokenClient.requestAccessToken({ prompt: 'consent', ux_mode: 'popup' });
 }
 
 // Handle successful token response
@@ -116,7 +128,7 @@ async function refreshToken() {
       resolve(true);
     };
 
-    tokenClient.requestAccessToken({ prompt: '' }); // Silent — no UI
+    tokenClient.requestAccessToken({ prompt: '', ux_mode: 'popup' }); // Silent — no UI
   });
 }
 
