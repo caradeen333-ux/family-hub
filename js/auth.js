@@ -86,9 +86,9 @@ async function handleAuthRedirect() {
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
     });
-    // Electron injects the secret at runtime (never in public code)
-    if (window.__CLIENT_SECRET__) {
-      body.set('client_secret', window.__CLIENT_SECRET__);
+    // Electron preload injects the secret (never in public code)
+    if (window.__electron?.clientSecret) {
+      body.set('client_secret', window.__electron.clientSecret);
     }
 
     const response = await fetch('https://oauth2.googleapis.com/token', {

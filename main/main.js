@@ -35,20 +35,12 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 
   mainWindow.setTitle('Family Hub');
   mainWindow.loadURL(APP_URL);
-
-  // Inject client secret into the page after it loads
-  mainWindow.webContents.on('did-finish-load', () => {
-    if (clientSecret) {
-      mainWindow.webContents.executeJavaScript(
-        `window.__CLIENT_SECRET__ = '${clientSecret}';`
-      );
-    }
-  });
 
   // Open external links in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
