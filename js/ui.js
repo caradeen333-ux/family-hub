@@ -58,32 +58,51 @@ function renderEvents(containerId, events, showPersonChip = false) {
     container.innerHTML = `
       <div class="empty-state">
         <span class="emoji">📅</span>
-        <p>No events today</p>
+        <p>No upcoming events</p>
       </div>`;
     return;
   }
 
-  container.innerHTML = events.map(ev => `
-    <div class="event-card${ev.allDay ? ' allday' : ''}"
-         style="border-left-color: ${ev.personColor}"
-         data-event-id="${ev.id}"
-         data-calendar-id="${encodeURIComponent(ev.calendarId)}">
-      <div class="event-time">
-        ${ev.allDay
-          ? '<span class="end-time">ALL<br>DAY</span>'
-          : `${formatTime(ev.startTime)}${ev.endTime ? `<br><span class="end-time">${formatTime(ev.endTime)}</span>` : ''}`
-        }
-      </div>
-      <div class="event-body">
-        <div class="event-title">${escapeHtml(ev.title)}</div>
-        <div class="event-meta">
-          ${ev.location ? `<span class="event-location">📍 ${escapeHtml(ev.location)}</span>` : ''}
-          ${showPersonChip ? `<span class="event-chip" style="background:${ev.personColor}22;color:${ev.personColor}">${escapeHtml(ev.personName)}</span>` : ''}
-          ${ev.status === 'cancelled' ? '<span class="event-chip">Cancelled</span>' : ''}
+  // Group events by date
+  const today = new Date().toISOString().split('T')[0];
+  const grouped = {};
+  for (const ev of events) {
+    const d = ev.date;
+    if (!grouped[d]) grouped[d] = [];
+    grouped[d].push(ev);
+  }
+
+  let html = '';
+  for (const [date, evs] of Object.entries(grouped)) {
+    const label = date === today
+      ? 'Today'
+      : new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    html += `<div class="day-header">${escapeHtml(label)}</div>`;
+
+    html += evs.map(ev => `
+      <div class="event-card${ev.allDay ? ' allday' : ''}"
+           style="border-left-color: ${ev.personColor}"
+           data-event-id="${ev.id}"
+           data-calendar-id="${encodeURIComponent(ev.calendarId)}">
+        <div class="event-time">
+          ${ev.allDay
+            ? '<span class="end-time">ALL<br>DAY</span>'
+            : `${formatTime(ev.startTime)}${ev.endTime ? `<br><span class="end-time">${formatTime(ev.endTime)}</span>` : ''}`
+          }
+        </div>
+        <div class="event-body">
+          <div class="event-title">${escapeHtml(ev.title)}</div>
+          <div class="event-meta">
+            ${ev.location ? `<span class="event-location">📍 ${escapeHtml(ev.location)}</span>` : ''}
+            ${showPersonChip ? `<span class="event-chip" style="background:${ev.personColor}22;color:${ev.personColor}">${escapeHtml(ev.personName)}</span>` : ''}
+            ${ev.status === 'cancelled' ? '<span class="event-chip">Cancelled</span>' : ''}
+          </div>
         </div>
       </div>
-    </div>
-  `).join('');
+    `).join('');
+  }
+
+  container.innerHTML = html;
 }
 
 // Add click handlers to event cards

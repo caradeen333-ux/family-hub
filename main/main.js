@@ -39,6 +39,10 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Clear service worker + cache storage for fresh code every launch
+  const ses = require('electron').session.defaultSession;
+  ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
+
   createWindow();
 
   app.on('activate', () => {

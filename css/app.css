@@ -124,6 +124,13 @@ body {
 /* ----- Event list ----- */
 .event-list { display: flex; flex-direction: column; gap: 6px; }
 
+.day-header {
+  font-size: 12px; font-weight: 700; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin: 8px 0 2px 0; padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+
 .event-card {
   display: flex; gap: 10px; padding: 10px 12px;
   background: var(--bg-card); border-radius: var(--radius-sm);

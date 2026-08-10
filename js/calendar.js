@@ -28,15 +28,16 @@ async function discoverCalendars() {
   return calendars;
 }
 
-// Fetch all configured calendars and return merged, normalized events for today
-async function fetchTodayEvents() {
+// Fetch all configured calendars and return merged, normalized events
+// Default: today + 6 days = a full week view
+async function fetchTodayEvents(days = 7) {
   const token = getAccessToken();
   if (!token) throw new Error('Not signed in');
 
-  // Today's window: midnight to midnight local
+  // Window: start of today → end of day N days from now
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay   = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+  const endOfDay   = new Date(startOfDay.getTime() + days * 24 * 60 * 60 * 1000);
 
   const timeMin = startOfDay.toISOString();
   const timeMax = endOfDay.toISOString();
