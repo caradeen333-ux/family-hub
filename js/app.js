@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (authResult !== null) {
     if (authResult.success) {
       toast('Signed in!', 'success');
+      await autoConfigureCalendars();
       await loadAllData();
     } else {
       toast('Sign in failed: ' + (authResult.error || 'unknown error'), 'error');
@@ -530,6 +531,41 @@ function loadDemoTab(tabName) {
 }
 
 // ===== HELPERS =====
+async function autoConfigureCalendars() {
+  try {
+    const calendars = await discoverCalendars();
+    let changed = false;
+
+    for (const person of CONFIG.people) {
+      if (person.calendarId && person.calendarId !== 'primary') continue; // Already configured
+
+      // Try to find a shared calendar matching this person
+      for (const [key, cal] of Object.entries(calendars)) {
+        if (cal.accessRole === 'owner' && person.calendarId === 'primary') continue; // Skip, primary is fine
+        // Match by email or summary containing the person's name
+        const nameLower = person.name.toLowerCase();
+        if (
+          key.toLowerCase().includes(nameLower) ||
+          (cal.summary && cal.summary.toLowerCase().includes(nameLower))
+        ) {
+          person.calendarId = cal.id;
+          changed = true;
+          console.log(`Auto-mapped ${person.name} → ${cal.id} (${cal.summary})`);
+          break;
+        }
+      }
+    }
+
+    if (changed) {
+      localStorage.setItem('fh_people', JSON.stringify(CONFIG.people));
+      renderPersonPicker(getSelectedPerson());
+    }
+  } catch (e) {
+    console.warn('Auto calendar discovery failed:', e);
+    // Non-fatal — user can configure manually in Settings
+  }
+}
+
 function formatTimeAgo(timestamp) {
   const diff = Date.now() - timestamp;
   const sec = Math.floor(diff / 1000);

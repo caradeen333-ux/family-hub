@@ -3,6 +3,31 @@
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 
+// Auto-discover shared calendars on first sign-in
+// Returns a map of calendar summary/email → calendarId
+async function discoverCalendars() {
+  const token = getAccessToken();
+  if (!token) throw new Error('Not signed in');
+
+  const url = `${CALENDAR_API}/users/me/calendarList`;
+  const resp = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!resp.ok) throw new Error(`Calendar list failed (${resp.status})`);
+  const data = await resp.json();
+
+  const calendars = {};
+  for (const entry of (data.items || [])) {
+    const id = entry.id;
+    // Key by email, summary, and id for flexible matching
+    calendars[id] = { id, summary: entry.summary, accessRole: entry.accessRole };
+    if (entry.id.includes('@')) calendars[entry.id.toLowerCase()] = { id, summary: entry.summary, accessRole: entry.accessRole };
+  }
+
+  return calendars;
+}
+
 // Fetch all configured calendars and return merged, normalized events for today
 async function fetchTodayEvents() {
   const token = getAccessToken();
