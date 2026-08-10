@@ -41,11 +41,21 @@
       <label for="person-picker">Showing:</label>
       <select id="person-picker"></select>
     </div>
+    <div class="view-range" id="range-myday">
+      <button class="range-btn active" data-range="1">Day</button>
+      <button class="range-btn" data-range="7">Week</button>
+      <button class="range-btn" data-range="30">Month</button>
+    </div>
     <div id="myday-events" class="event-list"></div>
   </section>
 
   <!-- Everyone tab -->
   <section id="panel-everyone" class="panel" role="tabpanel">
+    <div class="view-range" id="range-everyone">
+      <button class="range-btn active" data-range="1">Day</button>
+      <button class="range-btn" data-range="7">Week</button>
+      <button class="range-btn" data-range="30">Month</button>
+    </div>
     <div id="everyone-events" class="event-list"></div>
   </section>
 

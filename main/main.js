@@ -39,9 +39,19 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // Clear service worker + cache storage for fresh code every launch
+  // Only clear cache on first run after update (version check)
   const ses = require('electron').session.defaultSession;
-  ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
+  const currentVersion = app.getVersion();
+  const lastVersion = require('fs').existsSync(
+    require('path').join(app.getPath('userData'), 'version.txt'))
+    ? require('fs').readFileSync(
+        require('path').join(app.getPath('userData'), 'version.txt'), 'utf8').trim()
+    : '';
+  if (currentVersion !== lastVersion) {
+    ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
+    require('fs').writeFileSync(
+      require('path').join(app.getPath('userData'), 'version.txt'), currentVersion);
+  }
 
   createWindow();
 

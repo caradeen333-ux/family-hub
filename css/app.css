@@ -121,6 +121,17 @@ body {
   padding: 4px 10px; font-size: 13px;
 }
 
+/* ----- View range (Day/Week/Month) ----- */
+.view-range {
+  display: flex; gap: 4px; margin-bottom: 10px;
+}
+.range-btn {
+  padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-dim);
+  font-size: 11px; font-weight: 600; cursor: pointer; transition: var(--transition);
+}
+.range-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
 /* ----- Event list ----- */
 .event-list { display: flex; flex-direction: column; gap: 6px; }
 

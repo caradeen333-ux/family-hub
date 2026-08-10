@@ -68,7 +68,7 @@ async function loadAllData(silent = false) {
 
   try {
     // Fetch calendar events
-    const events = await fetchTodayEvents();
+    const events = await fetchTodayEvents(currentRange);
     await cacheEvents(events);
 
     // Render based on active tab
@@ -147,7 +147,23 @@ async function loadCachedData() {
 }
 
 // ===== EVENT LISTENERS =====
+let currentRange = 7; // Default: Week
+
 function setupEventListeners() {
+  // Day/Week/Month range buttons
+  document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const range = parseInt(btn.dataset.range);
+      currentRange = range;
+      // Update active state in all range groups
+      document.querySelectorAll('.range-btn').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.range) === range);
+      });
+      // Refetch and re-render current tab
+      await refreshCurrentTab();
+    });
+  });
+
   // Tabs
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', async () => {
@@ -166,7 +182,7 @@ function setupEventListeners() {
         }
         attachEventHandlers();
         if (isSignedIn()) {
-          const events = await fetchTodayEvents();
+          const events = await fetchTodayEvents(currentRange);
           await cacheEvents(events);
           renderEvents('myday-events', events.filter(e => e.personName === getSelectedPerson()), false);
           attachEventHandlers();
@@ -182,7 +198,7 @@ function setupEventListeners() {
         }
         attachEventHandlers();
         if (isSignedIn()) {
-          const events = await fetchTodayEvents();
+          const events = await fetchTodayEvents(currentRange);
           await cacheEvents(events);
           renderEvents('everyone-events', events, true);
           attachEventHandlers();
@@ -223,7 +239,7 @@ function setupEventListeners() {
     renderEvents('myday-events', cached.filter(e => e.personName === person), false);
     attachEventHandlers();
     if (isSignedIn()) {
-      const events = await fetchTodayEvents();
+      const events = await fetchTodayEvents(currentRange);
       await cacheEvents(events);
       renderEvents('myday-events', events.filter(e => e.personName === person), false);
       attachEventHandlers();
@@ -467,6 +483,23 @@ async function processOfflineQueue(queue) {
     }
   }
   await clearOfflineQueue();
+}
+
+async function refreshCurrentTab() {
+  const tabName = document.querySelector('.tab.active')?.dataset.tab || 'myday';
+  if (tabName === 'myday') {
+    const person = getSelectedPerson();
+    const events = await fetchTodayEvents(currentRange);
+    await cacheEvents(events);
+    renderEvents('myday-events', events.filter(e => e.personName === person), false);
+    attachEventHandlers();
+  }
+  if (tabName === 'everyone') {
+    const events = await fetchTodayEvents(currentRange);
+    await cacheEvents(events);
+    renderEvents('everyone-events', events, true);
+    attachEventHandlers();
+  }
 }
 
 // ===== DEMO DATA =====
