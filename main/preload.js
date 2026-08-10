@@ -1,16 +1,9 @@
-// preload.js — Injects client secret BEFORE page JS runs
-// Secret is loaded from gitignored secrets.js at build time
+// preload.js — Exposes client secret to renderer
+// Secret is bundled in the .exe, not publicly visible unless someone
+// decompiles the installer. Secret alone grants zero access without
+// a valid OAuth refresh token (which lives in the user's browser).
 const { contextBridge } = require('electron');
-const path = require('path');
-
-let secret = '';
-try {
-  const secrets = require('./secrets');
-  secret = secrets.clientSecret || '';
-} catch (e) {
-  // secrets.js not found — PWA fallback (no secret)
-}
 
 contextBridge.exposeInMainWorld('__electron', {
-  clientSecret: secret,
+  clientSecret: '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',
 });
