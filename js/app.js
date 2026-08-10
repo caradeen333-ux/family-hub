@@ -6,14 +6,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyTheme();
   loadSettings();
 
-  // GIS library will call onGoogleLibraryLoad when ready
-  window.onGoogleLibraryLoad = () => {
-    initTokenClient();
-    updateAuthUI();
-  };
-  // If library already loaded (cached), init now
-  if (window.google?.accounts?.oauth2) {
-    initTokenClient();
+  // Handle OAuth redirect back from Google
+  const authResult = await handleAuthRedirect();
+  if (authResult !== null) {
+    if (authResult.success) {
+      toast('Signed in!', 'success');
+      await autoConfigureCalendars();
+      await loadAllData();
+    } else {
+      toast('Sign in failed: ' + authResult.error, 'error');
+    }
   }
 
   // Load cached data immediately (offline-first)

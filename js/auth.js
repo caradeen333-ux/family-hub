@@ -1,12 +1,9 @@
-// auth.js — Google Identity Services OAuth (Token Client flow)
-// Uses Google's official GIS library — no client secret in code
-// Access tokens last 1 hour; auto-refresh via silent re-auth
+// auth.js — Manual PKCE OAuth flow
+// No client secret needed — PKCE replaces it. No GIS library needed.
 
 let accessToken = null;
 let tokenExpiry = 0;
-let tokenClient = null;
 
-// Load token from localStorage on startup
 function loadToken() {
   try {
     const raw = localStorage.getItem('fh_token');
@@ -28,108 +25,134 @@ function getAccessToken() {
   return accessToken;
 }
 
-// Initialize GIS token client (called once on load if library is available)
-function initTokenClient() {
-  if (!window.google?.accounts?.oauth2) {
-    console.warn('Google GIS library not loaded yet, retrying...');
-    setTimeout(initTokenClient, 500);
-    return;
-  }
-
-  try {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CONFIG.clientId,
-      scope: [
-        'https://www.googleapis.com/auth/calendar.readonly',
-        'https://www.googleapis.com/auth/calendar.events',
-        'https://www.googleapis.com/auth/spreadsheets',
-      ].join(' '),
-      callback: (resp) => {
-        console.log('Token callback:', resp?.error || 'success');
-        handleTokenResponse(resp);
-      },
-      error_callback: (err) => {
-        console.error('Token error callback:', err);
-        handleTokenError(err);
-      },
-    });
-    console.log('Token client initialized');
-  } catch (e) {
-    console.error('Failed to init token client:', e);
-  }
-}
-
-// Called when user clicks "Sign in with Google"
-function signIn() {
+// Begin OAuth PKCE flow — redirect to Google for sign-in
+async function signIn() {
   if (!CONFIG.clientId) {
-    console.error('No clientId set in config.js');
     throw new Error('Google OAuth not configured.');
   }
 
-  if (!tokenClient) {
-    // Library might not be loaded yet; retry
-    initTokenClient();
-  }
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallengeAsync(codeVerifier);
+  sessionStorage.setItem('fh_code_verifier', codeVerifier);
+  sessionStorage.setItem('fh_auth_started', '1');
 
-  if (!tokenClient) {
-    throw new Error('Google sign-in library not loaded. Check your internet connection.');
-  }
+  const redirectUri = window.location.origin + window.location.pathname;
 
-  tokenClient.requestAccessToken({ prompt: 'consent', ux_mode: 'popup' });
+  const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  authUrl.searchParams.set('client_id', CONFIG.clientId);
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('scope',
+    'https://www.googleapis.com/auth/calendar.readonly ' +
+    'https://www.googleapis.com/auth/calendar.events ' +
+    'https://www.googleapis.com/auth/spreadsheets'
+  );
+  authUrl.searchParams.set('code_challenge', codeChallenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  authUrl.searchParams.set('access_type', 'offline');
+  authUrl.searchParams.set('prompt', 'consent');
+
+  window.location.href = authUrl.toString();
 }
 
-// Handle successful token response
-function handleTokenResponse(response) {
-  if (response.error) {
-    console.error('Token error:', response.error, response.error_description);
-    if (typeof toast !== 'undefined') toast('Sign in failed: ' + (response.error_description || response.error), 'error');
-    return;
+// Handle redirect back from Google (?code=... in URL)
+async function handleAuthRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const error = params.get('error');
+  const authStarted = sessionStorage.getItem('fh_auth_started');
+
+  if (!code && !error) return null; // No auth in progress
+  if (!authStarted) return null;    // Not our auth
+
+  sessionStorage.removeItem('fh_auth_started');
+
+  if (error) {
+    return { success: false, error: params.get('error_description') || error };
   }
 
-  accessToken = response.access_token;
-  // Token expires in ~1 hour; set expiry with 5-min buffer
-  const expiresIn = (response.expires_in || 3600) - 300;
-  tokenExpiry = Date.now() + (expiresIn * 1000);
+  const codeVerifier = sessionStorage.getItem('fh_code_verifier');
+  sessionStorage.removeItem('fh_code_verifier');
+  if (!codeVerifier) {
+    return { success: false, error: 'Missing code verifier — restart sign-in' };
+  }
 
-  localStorage.setItem('fh_token', accessToken);
-  localStorage.setItem('fh_token_expiry', tokenExpiry.toString());
+  try {
+    const redirectUri = window.location.origin + window.location.pathname;
+    const body = new URLSearchParams({
+      client_id: CONFIG.clientId,
+      code: code,
+      code_verifier: codeVerifier,
+      grant_type: 'authorization_code',
+      redirect_uri: redirectUri,
+    });
 
-  if (typeof toast !== 'undefined') toast('Signed in!', 'success');
-  if (typeof updateAuthUI !== 'undefined') updateAuthUI();
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body,
+    });
 
-  // Trigger data load (app.js listens for this via polling or we call directly)
-  if (typeof loadAllData !== 'undefined') loadAllData();
-  if (typeof autoConfigureCalendars !== 'undefined') autoConfigureCalendars();
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('Token exchange failed:', data);
+      return { success: false, error: data.error_description || data.error || 'Token exchange failed' };
+    }
+
+    accessToken = data.access_token;
+    tokenExpiry = Date.now() + (data.expires_in * 1000) - 300000; // 5-min buffer
+
+    localStorage.setItem('fh_token', accessToken);
+    localStorage.setItem('fh_token_expiry', tokenExpiry.toString());
+    if (data.refresh_token) {
+      localStorage.setItem('fh_refresh_token', data.refresh_token);
+    }
+
+    // Clean URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    return { success: true };
+  } catch (e) {
+    console.error('Token exchange error:', e);
+    return { success: false, error: e.message };
+  }
 }
 
-function handleTokenError(error) {
-  console.error('Token error:', error);
-  if (typeof toast !== 'undefined') toast('Sign in failed: ' + (error.message || 'Unknown error'), 'error');
-}
-
-// Try silent refresh (no user prompt) — only works if user already consented
+// Refresh using refresh token
 async function refreshToken() {
-  if (!tokenClient) return false;
+  const refresh = localStorage.getItem('fh_refresh_token');
+  if (!refresh || !CONFIG.clientId) return false;
 
-  return new Promise((resolve) => {
-    // Override callback temporarily for silent refresh
-    const origCallback = tokenClient.callback;
-    tokenClient.callback = (response) => {
-      tokenClient.callback = origCallback; // Restore
-      if (response.error) {
-        resolve(false);
-        return;
-      }
-      accessToken = response.access_token;
-      const expiresIn = (response.expires_in || 3600) - 300;
-      tokenExpiry = Date.now() + (expiresIn * 1000);
-      localStorage.setItem('fh_token', accessToken);
-      localStorage.setItem('fh_token_expiry', tokenExpiry.toString());
-      resolve(true);
-    };
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: CONFIG.clientId,
+        refresh_token: refresh,
+        grant_type: 'refresh_token',
+      }),
+    });
 
-    tokenClient.requestAccessToken({ prompt: '', ux_mode: 'popup' }); // Silent — no UI
-  });
+    if (!response.ok) {
+      signOut();
+      return false;
+    }
+
+    const data = await response.json();
+    accessToken = data.access_token;
+    tokenExpiry = Date.now() + (data.expires_in * 1000) - 300000;
+    localStorage.setItem('fh_token', accessToken);
+    localStorage.setItem('fh_token_expiry', tokenExpiry.toString());
+    if (data.refresh_token) {
+      localStorage.setItem('fh_refresh_token', data.refresh_token);
+    }
+    return true;
+  } catch (e) {
+    console.error('Refresh error:', e);
+    return false;
+  }
 }
 
 function signOut() {
@@ -137,9 +160,33 @@ function signOut() {
   tokenExpiry = 0;
   localStorage.removeItem('fh_token');
   localStorage.removeItem('fh_token_expiry');
+  localStorage.removeItem('fh_refresh_token');
+}
 
-  // Also revoke with Google if possible
-  if (window.google?.accounts?.oauth2?.revoke) {
-    google.accounts.oauth2.revoke(accessToken, () => {});
-  }
+// PKCE helpers (no crypto.subtle needed for basic support)
+function generateCodeVerifier() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const array = new Uint8Array(64);
+  crypto.getRandomValues(array);
+  return Array.from(array, b => chars[b % chars.length]).join('').substring(0, 128);
+}
+
+function generateCodeChallenge(verifier) {
+  // SHA-256 via SubtleCrypto
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  // We can't do async here, so we use a synchronous approach
+  // The hash will be computed when signIn() is called
+  return null; // Will be filled in by the async version
+}
+
+// Actually use async version in signIn
+async function generateCodeChallengeAsync(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
 }
