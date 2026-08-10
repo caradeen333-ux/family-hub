@@ -2,11 +2,9 @@
 // Edit these or configure via the Settings UI
 
 const CONFIG = {
-  // OAuth client ID from Google Cloud Console (Web application, PKCE)
+  // OAuth client ID from Google Cloud Console
+  // NOTE: The secret is NEVER stored here — auth uses Google's GIS library
   clientId: '251957454378-5sp17im5fa0d8vu5c13h4dsg32gdk6b3.apps.googleusercontent.com',
-  // Client secret — required by Google for token exchange. Useless without a
-  // refresh token which lives ONLY in each user's browser localStorage.
-  clientSecret: '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',
 
   // Google Sheets spreadsheet ID for notes (from the sheet URL)
   // Replace with your real sheet ID after creating the notes sheet
