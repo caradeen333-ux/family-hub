@@ -87,6 +87,7 @@ async function handleAuthRedirect() {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         client_id: CONFIG.clientId,
+        client_secret: CONFIG.clientSecret,
         code: code,
         code_verifier: codeVerifier,
         grant_type: 'authorization_code',
@@ -133,6 +134,7 @@ async function refreshToken() {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         client_id: CONFIG.clientId,
+        client_secret: CONFIG.clientSecret,
         refresh_token: refresh,
         grant_type: 'refresh_token',
       }),

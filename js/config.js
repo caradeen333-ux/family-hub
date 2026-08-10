@@ -2,8 +2,9 @@
 // Edit these or configure via the Settings UI
 
 const CONFIG = {
-  // OAuth client ID from Google Cloud Console (Web application, PKCE)
+  // OAuth client credentials from Google Cloud Console
   clientId: '251957454378-5sp17im5fa0d8vu5c13h4dsg32gdk6b3.apps.googleusercontent.com',
+  clientSecret: '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',
 
   // Google Sheets spreadsheet ID for notes (from the sheet URL)
   // Replace with your real sheet ID after creating the notes sheet
