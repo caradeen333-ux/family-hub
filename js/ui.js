@@ -223,8 +223,8 @@ function attachNoteFilterHandlers() {
       const filterType = chip.dataset.filter;
       const value = chip.dataset.value;
       if (filterType === 'importance') noteFilters.importance = noteFilters.importance === value ? null : value;
-      if (filterType === 'author')     noteFilters.author = value || null;
-      if (filterType === 'category')   noteFilters.category = value || null;
+      if (filterType === 'author')     noteFilters.author = noteFilters.author === value ? null : value;
+      if (filterType === 'category')   noteFilters.category = noteFilters.category === value ? null : value;
       renderNoteFilters();
       renderNotes();
     });

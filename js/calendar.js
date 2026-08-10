@@ -77,10 +77,16 @@ async function fetchTodayEvents(days = 7) {
     }
   }
 
-  // Sort by start time (all-day first, then timed)
+  // Sort by date first, then within same date: all-day before timed, then by time
   allEvents.sort((a, b) => {
+    // Sort by date first
+    const dateA = a.date || '';
+    const dateB = b.date || '';
+    if (dateA !== dateB) return dateA.localeCompare(dateB);
+    // Same date: all-day events before timed events
     if (a.allDay && !b.allDay) return -1;
     if (!a.allDay && b.allDay) return 1;
+    // Same date + same type: sort by start time
     const sa = a.startTime || a.date;
     const sb = b.startTime || b.date;
     return sa.localeCompare(sb);
