@@ -86,12 +86,10 @@ async function handleAuthRedirect() {
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
     });
-    // Electron preload injects the secret (never in public code)
-    if (window.__electron?.clientSecret) {
-      body.set('client_secret', window.__electron.clientSecret);
-      console.log('Auth: using Electron-injected client secret');
-    } else {
-      console.warn('Auth: no client secret available — token exchange may fail');
+    // Client secret: Electron preload, or CONFIG fallback for mobile PWA
+    const secret = window.__electron?.clientSecret || CONFIG.clientSecret;
+    if (secret) {
+      body.set('client_secret', secret);
     }
 
     const response = await fetch('https://oauth2.googleapis.com/token', {
@@ -138,9 +136,10 @@ async function refreshToken() {
       grant_type: 'refresh_token',
     });
 
-    // Electron preload injects the client secret — include it
-    if (window.__electron?.clientSecret) {
-      body.set('client_secret', window.__electron.clientSecret);
+    // Client secret: Electron preload, or CONFIG fallback for mobile PWA
+    const secret = window.__electron?.clientSecret || CONFIG.clientSecret;
+    if (secret) {
+      body.set('client_secret', secret);
     }
 
     const response = await fetch('https://oauth2.googleapis.com/token', {
