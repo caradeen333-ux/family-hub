@@ -14,10 +14,10 @@ let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 420,
-    height: 600,
-    minWidth: 320,
-    minHeight: 420,
+    width: 500,
+    height: 720,
+    minWidth: 380,
+    minHeight: 500,
     frame: true,
     resizable: true,
     alwaysOnTop: false,

@@ -6,6 +6,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyTheme();
   loadSettings();
 
+  // RESTORE saved auth token from localStorage (survives power-off/restart)
+  loadToken();
+
+  // If token is expired but we have a refresh token, try refreshing silently
+  if (!isSignedIn() && localStorage.getItem('fh_refresh_token')) {
+    setSyncStatus('', '● Refreshing session...');
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      console.log('Auth: session restored via refresh token');
+    } else {
+      console.log('Auth: refresh failed — user needs to sign in again');
+    }
+  }
+
   // Handle OAuth redirect back from Google
   const authResult = await handleAuthRedirect();
   if (authResult !== null) {

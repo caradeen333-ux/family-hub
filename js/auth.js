@@ -132,18 +132,30 @@ async function refreshToken() {
   if (!refresh || !CONFIG.clientId) return false;
 
   try {
+    const body = new URLSearchParams({
+      client_id: CONFIG.clientId,
+      refresh_token: refresh,
+      grant_type: 'refresh_token',
+    });
+
+    // Electron preload injects the client secret — include it
+    if (window.__electron?.clientSecret) {
+      body.set('client_secret', window.__electron.clientSecret);
+    }
+
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: CONFIG.clientId,
-        refresh_token: refresh,
-        grant_type: 'refresh_token',
-      }),
+      body,
     });
 
     if (!response.ok) {
-      signOut();
+      // Only sign out if the refresh token itself is invalid (not a transient error)
+      const err = await response.json().catch(() => ({}));
+      if (err.error === 'invalid_grant') {
+        console.error('Refresh token revoked or expired — signing out');
+        signOut();
+      }
       return false;
     }
 
