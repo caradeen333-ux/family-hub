@@ -1,13 +1,23 @@
 // main.js — Electron wrapper for Family Hub PWA
-// Minimal shell: loads the PWA, auto-starts with Windows, frameless widget window
+// Loads PWA, injects client secret at runtime (never in public code)
 
-const { app, BrowserWindow, shell, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 const APP_URL = 'https://caradeen333-ux.github.io/family-hub/';
 
 // Auto-start with Windows
 app.setLoginItemSettings({ openAtLogin: true });
+
+// Load client secret from gitignored file (bundled in .exe, not public)
+let clientSecret = '';
+try {
+  const secrets = require('./secrets.js');
+  clientSecret = secrets.clientSecret;
+} catch (e) {
+  console.warn('No secrets.js found — OAuth may not work');
+}
 
 let mainWindow;
 
@@ -17,7 +27,7 @@ function createWindow() {
     height: 600,
     minWidth: 320,
     minHeight: 420,
-    frame: true, // Framed for title bar drag; PWA header has its own drag region too
+    frame: true,
     resizable: true,
     alwaysOnTop: false,
     skipTaskbar: false,
@@ -30,6 +40,15 @@ function createWindow() {
 
   mainWindow.setTitle('Family Hub');
   mainWindow.loadURL(APP_URL);
+
+  // Inject client secret into the page after it loads
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (clientSecret) {
+      mainWindow.webContents.executeJavaScript(
+        `window.__CLIENT_SECRET__ = '${clientSecret}';`
+      );
+    }
+  });
 
   // Open external links in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
