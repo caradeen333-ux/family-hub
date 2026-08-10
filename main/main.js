@@ -10,15 +10,6 @@ const APP_URL = 'https://caradeen333-ux.github.io/family-hub/';
 // Auto-start with Windows
 app.setLoginItemSettings({ openAtLogin: true });
 
-// Load client secret from gitignored file (bundled in .exe, not public)
-let clientSecret = '';
-try {
-  const secrets = require('./secrets.js');
-  clientSecret = secrets.clientSecret;
-} catch (e) {
-  console.warn('No secrets.js found — OAuth may not work');
-}
-
 let mainWindow;
 
 function createWindow() {
