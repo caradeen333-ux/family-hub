@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f0f14">
+  <meta name="description" content="Family calendar & notes — no server needed">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Family Hub</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header id="header">
+  <div class="header-left">
+    <span id="header-date"></span>
+  </div>
+  <div class="header-center">
+    <nav id="tab-bar" role="tablist">
+      <button role="tab" data-tab="myday"   class="tab active" aria-selected="true"> My Day</button>
+      <button role="tab" data-tab="everyone" class="tab"        aria-selected="false">Everyone</button>
+      <button role="tab" data-tab="notes"   class="tab"        aria-selected="false">Notes</button>
+    </nav>
+  </div>
+  <div class="header-right">
+    <button id="btn-add"    class="icon-btn" title="Add event" aria-label="Add event">+</button>
+    <button id="btn-refresh" class="icon-btn" title="Refresh"  aria-label="Refresh">&#x21bb;</button>
+    <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">&#x2699;</button>
+  </div>
+</header>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main id="main">
+
+  <!-- My Day tab -->
+  <section id="panel-myday" class="panel active" role="tabpanel">
+    <div class="person-selector">
+      <label for="person-picker">Showing:</label>
+      <select id="person-picker"></select>
+    </div>
+    <div id="myday-events" class="event-list"></div>
+  </section>
+
+  <!-- Everyone tab -->
+  <section id="panel-everyone" class="panel" role="tabpanel">
+    <div id="everyone-events" class="event-list"></div>
+  </section>
+
+  <!-- Notes tab -->
+  <section id="panel-notes" class="panel" role="tabpanel">
+    <div class="notes-toolbar">
+      <div class="filter-chips" id="filter-importance"></div>
+      <div class="filter-chips" id="filter-author"></div>
+      <div class="filter-chips" id="filter-category"></div>
+      <select id="sort-notes" class="sort-select">
+        <option value="date-desc">Newest first</option>
+        <option value="date-asc">Oldest first</option>
+        <option value="importance">Importance</option>
+      </select>
+    </div>
+    <div id="notes-list" class="notes-list"></div>
+    <button id="btn-add-note" class="fab" aria-label="Add note">+</button>
+  </section>
+
+</main>
+
+<!-- ===== FOOTER ===== -->
+<footer id="footer">
+  <span class="sync-status" id="sync-status">● Loading...</span>
+  <span class="offline-banner hidden" id="offline-banner">Offline — showing cached data</span>
+</footer>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Event form modal -->
+<div id="modal-event" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-event-title">Add Event</h2>
+      <button class="modal-close" data-close="modal-event">&times;</button>
+    </div>
+    <form id="form-event">
+      <label>Title <input type="text" name="title" required placeholder="Event name"></label>
+      <div class="form-row">
+        <label>Date <input type="date" name="date" required></label>
+        <label>All day <input type="checkbox" name="allday" class="cb-allday"></label>
+      </div>
+      <div class="form-row time-row">
+        <label>Start <input type="time" name="startTime"></label>
+        <label>End   <input type="time" name="endTime"></label>
+      </div>
+      <label>Calendar
+        <select name="calendarId" required></select>
+      </label>
+      <label>Location <input type="text" name="location" placeholder="Optional"></label>
+      <label>Description <textarea name="description" rows="2" placeholder="Optional"></textarea></label>
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" data-close="modal-event">Cancel</button>
+        <button type="submit" class="btn-primary">Save Event</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Note form modal -->
+<div id="modal-note" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-note-title">Add Note</h2>
+      <button class="modal-close" data-close="modal-note">&times;</button>
+    </div>
+    <form id="form-note">
+      <label>Author
+        <select name="author" required></select>
+      </label>
+      <div class="form-row">
+        <label>Date <input type="date" name="date" required></label>
+        <label>Time <input type="time" name="time"></label>
+      </div>
+      <div class="form-row">
+        <label>Importance
+          <select name="importance">
+            <option value="low">🟢 Low</option>
+            <option value="medium" selected>🟡 Medium</option>
+            <option value="high">🔴 High</option>
+          </select>
+        </label>
+        <label>Category
+          <select name="category">
+            <option value="General">General</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Medical">Medical</option>
+            <option value="School">School</option>
+            <option value="Chores">Chores</option>
+            <option value="Work">Work</option>
+          </select>
+        </label>
+      </div>
+      <label>Note
+        <textarea name="note" rows="3" required placeholder="What needs to be done?"></textarea>
+      </label>
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" data-close="modal-note">Cancel</button>
+        <button type="submit" class="btn-primary">Save Note</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit/Delete confirmation -->
+<div id="modal-confirm" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <p id="confirm-message"></p>
+    <div class="form-actions">
+      <button class="btn-cancel" data-close="modal-confirm">Cancel</button>
+      <button class="btn-danger" id="btn-confirm-delete">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div id="modal-settings" class="modal-overlay hidden">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Settings</h2>
+      <button class="modal-close" data-close="modal-settings">&times;</button>
+    </div>
+    <div class="settings-body">
+      <section class="settings-section">
+        <h3>Account</h3>
+        <div id="auth-area">
+          <button id="btn-signin" class="btn-primary">Sign in with Google</button>
+          <span id="auth-user" class="hidden"></span>
+          <button id="btn-signout" class="btn-cancel hidden">Sign out</button>
+        </div>
+      </section>
+      <section class="settings-section">
+        <h3>People &amp; Calendars</h3>
+        <div id="people-config"></div>
+        <button id="btn-add-person" class="btn-secondary">+ Add Person</button>
+      </section>
+      <section class="settings-section">
+        <h3>Notes</h3>
+        <label>Google Sheets ID <input type="text" id="setting-sheet-id" placeholder="Spreadsheet ID from URL"></label>
+      </section>
+      <section class="settings-section">
+        <h3>Display</h3>
+        <label class="toggle-label">
+          <input type="checkbox" id="setting-darkmode"> Dark mode
+        </label>
+        <label class="toggle-label">
+          <input type="checkbox" id="setting-alwaysontop"> Desktop: Always on top (install as app first)
+        </label>
+      </section>
+      <section class="settings-section">
+        <h3>About</h3>
+        <p class="about-text">Family Hub v1.0 — No server required. All data syncs through Google Calendar &amp; Sheets.</p>
+        <button id="btn-install" class="btn-secondary hidden">📲 Install App</button>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script src="js/config.js"></script>
+<script src="js/cache.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/calendar.js"></script>
+<script src="js/notes.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
