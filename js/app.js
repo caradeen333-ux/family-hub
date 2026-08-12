@@ -370,6 +370,64 @@ function setupEventListeners() {
     toast('Signed out', 'success');
   });
 
+  // Theme toggle button
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    const dark = !document.body.classList.contains('light');
+    document.body.classList.toggle('light', !dark);
+    localStorage.setItem('fh_darkmode', dark);
+    document.getElementById('btn-theme').textContent = dark ? '🌙' : '☀️';
+    document.getElementById('setting-darkmode').checked = dark;
+  });
+
+  // Quick-add note (Enter to save)
+  document.getElementById('quick-note-input').addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter' || !e.target.value.trim()) return;
+    const input = e.target;
+    const text = input.value.trim();
+    input.value = '';
+    const author = getSelectedPerson() || CONFIG.people[0]?.name || 'Mike';
+    const noteData = {
+      id: generateId(),
+      author,
+      date: new Date().toISOString().split('T')[0],
+      time: '',
+      importance: 'medium',
+      color: CONFIG.people.find(p => p.name === author)?.color || '#7c5cfc',
+      category: 'General',
+      note: text,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      if (!navigator.onLine) {
+        await queueOfflineWrite({ type: 'note', action: 'add', data: noteData });
+        toast('Queued for sync', 'success');
+      } else {
+        await addNote(noteData);
+        toast('Note added!', 'success');
+        const notes = await fetchNotes();
+        setNotesData(notes);
+        await cacheNotes(notes);
+        renderNotes();
+        renderNoteFilters();
+        attachNoteFilterHandlers();
+        attachNoteActionHandlers();
+      }
+      updateNotesBadge();
+    } catch (err) {
+      toast('Failed: ' + err.message, 'error');
+    }
+  });
+
+  // Settings: always on top
+  document.getElementById('setting-alwaysontop').addEventListener('change', (e) => {
+    localStorage.setItem('fh_alwaysontop', e.target.checked);
+    if (window.__electron && window.__electron.setAlwaysOnTop) {
+      window.__electron.setAlwaysOnTop(e.target.checked);
+    }
+  });
+
   // Settings: dark mode toggle
   document.getElementById('setting-darkmode').addEventListener('change', (e) => {
     document.body.classList.toggle('light', !e.target.checked);

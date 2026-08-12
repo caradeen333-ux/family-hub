@@ -1,18 +1,24 @@
 // main.js — Electron wrapper for Family Hub PWA
 // Loads PWA, injects client secret at runtime (never in public code)
 
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 const APP_URL = 'https://caradeen333-ux.github.io/family-hub/';
 
-// Auto-start with Windows
-app.setLoginItemSettings({ openAtLogin: true });
-
 let mainWindow;
 
 function createWindow() {
+  // Read always-on-top preference
+  let alwaysOnTop = false;
+  try {
+    const prefsPath = path.join(app.getPath('userData'), 'prefs.json');
+    if (fs.existsSync(prefsPath)) {
+      alwaysOnTop = JSON.parse(fs.readFileSync(prefsPath, 'utf8')).alwaysOnTop || false;
+    }
+  } catch (e) { /* ignore */ }
+
   mainWindow = new BrowserWindow({
     width: 500,
     height: 720,
@@ -20,7 +26,7 @@ function createWindow() {
     minHeight: 500,
     frame: true,
     resizable: true,
-    alwaysOnTop: false,
+    alwaysOnTop,
     skipTaskbar: false,
     icon: path.join(__dirname, '..', 'icons', 'icon-512.png'),
     webPreferences: {
@@ -40,19 +46,26 @@ function createWindow() {
   });
 }
 
+// IPC: toggle always-on-top
+ipcMain.on('set-always-on-top', (_event, onTop) => {
+  if (mainWindow) mainWindow.setAlwaysOnTop(onTop);
+  try {
+    const prefsPath = path.join(app.getPath('userData'), 'prefs.json');
+    fs.writeFileSync(prefsPath, JSON.stringify({ alwaysOnTop: onTop }));
+  } catch (e) { /* ignore */ }
+});
+
 app.whenReady().then(() => {
   // Only clear cache on first run after update (version check)
   const ses = require('electron').session.defaultSession;
   const currentVersion = app.getVersion();
-  const lastVersion = require('fs').existsSync(
-    require('path').join(app.getPath('userData'), 'version.txt'))
-    ? require('fs').readFileSync(
-        require('path').join(app.getPath('userData'), 'version.txt'), 'utf8').trim()
+  const versionPath = path.join(app.getPath('userData'), 'version.txt');
+  const lastVersion = fs.existsSync(versionPath)
+    ? fs.readFileSync(versionPath, 'utf8').trim()
     : '';
   if (currentVersion !== lastVersion) {
     ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
-    require('fs').writeFileSync(
-      require('path').join(app.getPath('userData'), 'version.txt'), currentVersion);
+    fs.writeFileSync(versionPath, currentVersion);
   }
 
   createWindow();

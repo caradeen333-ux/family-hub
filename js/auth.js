@@ -189,16 +189,6 @@ function generateCodeVerifier() {
   return Array.from(array, b => chars[b % chars.length]).join('').substring(0, 128);
 }
 
-function generateCodeChallenge(verifier) {
-  // SHA-256 via SubtleCrypto
-  const encoder = new TextEncoder();
-  const data = encoder.encode(verifier);
-  // We can't do async here, so we use a synchronous approach
-  // The hash will be computed when signIn() is called
-  return null; // Will be filled in by the async version
-}
-
-// Actually use async version in signIn
 async function generateCodeChallengeAsync(verifier) {
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);

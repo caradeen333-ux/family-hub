@@ -20,12 +20,13 @@
   </div>
   <div class="header-center">
     <nav id="tab-bar" role="tablist">
-      <button role="tab" data-tab="myday"   class="tab active" aria-selected="true"> My Day</button>
-      <button role="tab" data-tab="everyone" class="tab"        aria-selected="false">Everyone</button>
-      <button role="tab" data-tab="notes"   class="tab"        aria-selected="false">Notes</button>
+      <button role="tab" data-tab="myday"   class="tab active" aria-selected="true"  aria-controls="panel-myday"> My Day</button>
+      <button role="tab" data-tab="everyone" class="tab"        aria-selected="false" aria-controls="panel-everyone">Everyone</button>
+      <button role="tab" data-tab="notes"   class="tab"        aria-selected="false" aria-controls="panel-notes">Notes<span class="tab-badge hidden" id="notes-badge"></span></button>
     </nav>
   </div>
   <div class="header-right">
+    <button id="btn-theme" class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">🌓</button>
     <button id="btn-add"    class="icon-btn" title="Add event" aria-label="Add event">+</button>
     <button id="btn-refresh" class="icon-btn" title="Refresh"  aria-label="Refresh">&#x21bb;</button>
     <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">&#x2699;</button>
@@ -34,6 +35,7 @@
 
 <!-- ===== MAIN CONTENT ===== -->
 <main id="main">
+  <div class="pull-indicator" id="pull-indicator">↓ Pull to refresh</div>
 
   <!-- My Day tab -->
   <section id="panel-myday" class="panel active" role="tabpanel">
@@ -60,7 +62,10 @@
   </section>
 
   <!-- Notes tab -->
-  <section id="panel-notes" class="panel" role="tabpanel">
+  <section id="panel-notes" class="panel" role="tabpanel" aria-labelledby="tab-notes">
+    <div class="quick-add">
+      <input id="quick-note-input" type="text" placeholder="Type a note and press Enter..." aria-label="Quick-add note">
+    </div>
     <div class="notes-toolbar">
       <div class="filter-chips" id="filter-importance"></div>
       <div class="filter-chips" id="filter-author"></div>
@@ -86,7 +91,7 @@
 <!-- ===== MODALS ===== -->
 
 <!-- Event form modal -->
-<div id="modal-event" class="modal-overlay hidden">
+<div id="modal-event" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-event-title">
   <div class="modal">
     <div class="modal-header">
       <h2 id="modal-event-title">Add Event</h2>
@@ -207,7 +212,8 @@
       </section>
       <section class="settings-section">
         <h3>About</h3>
-        <p class="about-text">Family Hub v1.0 — No server required. All data syncs through Google Calendar &amp; Sheets.</p>
+        <p class="about-text">Family Hub <span class="version-text" id="app-version">v2.0.0</span> — No server required. All data syncs through Google Calendar &amp; Sheets.</p>
+        <p class="about-text"><a href="https://github.com/caradeen333-ux/family-hub" target="_blank" rel="noopener">GitHub</a></p>
         <button id="btn-install" class="btn-secondary hidden">📲 Install App</button>
       </section>
     </div>

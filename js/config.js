@@ -5,10 +5,7 @@ const CONFIG = {
   // OAuth client ID from Google Cloud Console
   clientId: '251957454378-5sp17im5fa0d8vu5c13h4dsg32gdk6b3.apps.googleusercontent.com',
 
-  // OAuth client secret — bundled in Electron exe via preload,
-  // also here so mobile PWA can sign in without the Electron wrapper.
-  // Private family app, 3 users. Not a security concern.
-  clientSecret: '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',
+  // PKCE auth flow — no client secret needed for public clients
 
   // Google Sheets spreadsheet ID for notes (from the sheet URL)
   // Replace with your real sheet ID after creating the notes sheet
@@ -30,6 +27,9 @@ const CONFIG = {
 
   // Default tab on load
   defaultTab: 'myday',
+
+  // App version (shown in Settings)
+  version: '2.0.0',
 };
 
 // Notes categories (editable in settings)

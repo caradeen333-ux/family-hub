@@ -1,6 +1,6 @@
 {
   "name": "family-hub",
-  "version": "1.0.9",
+  "version": "2.0.0",
   "description": "Shared family calendar & notes app",
   "main": "main/main.js",
   "scripts": {

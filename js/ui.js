@@ -82,10 +82,11 @@ function renderEvents(containerId, events, showPersonChip = false) {
   // Sort dates to ensure correct order (defensive — cached data may be unsorted)
   const sortedDates = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
   for (const [date, evs] of sortedDates) {
-    const label = date === today
+    const isToday = date === today;
+    const label = isToday
       ? 'Today'
       : new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    html += `<div class="day-header">${escapeHtml(label)}</div>`;
+    html += `<div class="day-header${isToday ? ' today' : ''}">${escapeHtml(label)}</div>`;
 
     html += evs.map(ev => `
       <div class="event-card${ev.allDay ? ' allday' : ''}"
@@ -120,7 +121,8 @@ function attachEventHandlers() {
       const calId = decodeURIComponent(card.dataset.calendarId);
       const eventId = card.dataset.eventId;
       if (eventId && calId) {
-        window.open(`https://calendar.google.com/calendar/event?eid=${btoa(eventId)}`, '_blank');
+        const eid = btoa(eventId + ' ' + calId);
+        window.open(`https://calendar.google.com/calendar/event?eid=${eid}`, '_blank');
       }
     });
   });
@@ -132,11 +134,24 @@ let noteFilters = { importance: null, author: null, category: null, sort: 'date-
 
 function setNotesData(notes) {
   allNotes = notes;
+  updateNotesBadge();
+}
+
+function updateNotesBadge() {
+  const badge = document.getElementById('notes-badge');
+  if (!badge) return;
+  const count = allNotes.filter(n => n.status === 'active').length;
+  badge.textContent = count;
+  badge.classList.toggle('hidden', count === 0);
 }
 
 function renderNotes() {
   const container = document.getElementById('notes-list');
   if (!container) return;
+
+  // Preserve scroll position across re-renders
+  const main = document.getElementById('main');
+  const scrollTop = main ? main.scrollTop : 0;
 
   let filtered = [...allNotes];
 
@@ -195,6 +210,11 @@ function renderNotes() {
         </div>
       </div>`;
   }).join('');
+
+  // Restore scroll position
+  if (main) {
+    requestAnimationFrame(() => { main.scrollTop = scrollTop; });
+  }
 }
 
 function renderNoteFilters() {

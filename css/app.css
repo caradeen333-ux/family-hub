@@ -12,13 +12,14 @@
   --bg-hover:  #2a2a36;
   --text:      #e4e4ec;
   --text-dim:  #8888a0;
-  --text-muted:#5e5e74;
+  --text-muted:#72728a;
   --accent:    #7c5cfc;
   --accent-2:  #5cc9fc;
   --danger:    #fc5c7c;
   --success:   #5cfc9c;
   --warning:   #fcd45c;
   --border:    #2a2a38;
+  --skeleton:  #2a2a36;
   --radius:    12px;
   --radius-sm: 8px;
   --shadow:    0 2px 12px rgba(0,0,0,.4);
@@ -38,6 +39,7 @@ body.light {
   --text-dim:  #666680;
   --text-muted:#9999b0;
   --border:    #d8d8e4;
+  --skeleton:  #e0e0e8;
   --shadow:    0 2px 12px rgba(0,0,0,.08);
 }
 
@@ -61,8 +63,9 @@ body {
   flex-shrink: 0; height: var(--header-h);
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 12px;
-  background: var(--bg-card); border-bottom: 1px solid var(--border);
-  -webkit-app-region: drag; /* draggable in standalone PWA window */
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border);
+  -webkit-app-region: drag;
 }
 #header button, #header select, #header input, #header nav {
   -webkit-app-region: no-drag;
@@ -74,22 +77,40 @@ body {
 
 #header-date { font-weight: 600; white-space: nowrap; }
 
+/* Theme toggle in header */
+.theme-toggle {
+  background: none; border: none; font-size: 16px; cursor: pointer;
+  width: 30px; height: 30px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; transition: var(--transition);
+}
+.theme-toggle:hover { background: var(--bg-input); }
+
 /* ----- Tabs ----- */
 #tab-bar {
   display: flex; gap: 0;
   background: var(--bg-input); border-radius: var(--radius-sm);
-  padding: 2px;
+  padding: 2px; position: relative;
 }
 .tab {
   padding: 6px 16px; border: none; background: transparent;
   color: var(--text-dim); font-size: 13px; font-weight: 600;
   border-radius: 6px; cursor: pointer; transition: var(--transition);
-  white-space: nowrap;
+  white-space: nowrap; position: relative;
 }
 .tab.active {
   background: var(--accent); color: #fff;
 }
 .tab:not(.active):hover { color: var(--text); }
+
+/* Tab badge */
+.tab-badge {
+  position: absolute; top: -4px; right: -6px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--danger); color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.tab-badge.hidden { display: none; }
 
 /* ----- Icon buttons ----- */
 .icon-btn {
@@ -106,9 +127,33 @@ body {
   flex: 1; overflow-y: auto; overflow-x: hidden;
   padding: 12px;
   -webkit-overflow-scrolling: touch;
+  position: relative;
 }
-.panel { display: none; }
-.panel.active { display: block; }
+.panel {
+  display: none; opacity: 0; transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.panel.active { display: block; opacity: 1; transform: translateY(0); }
+.panel-exit { opacity: 0; transform: translateY(-4px); }
+
+/* Pull-to-refresh indicator */
+.pull-indicator {
+  text-align: center; padding: 0; height: 0; overflow: hidden;
+  color: var(--text-muted); font-size: 12px; font-weight: 600;
+  transition: height 0.2s ease, padding 0.2s ease;
+}
+.pull-indicator.active { height: 40px; padding: 8px 0; }
+
+/* ----- Quick-add note bar ----- */
+.quick-add {
+  width: 100%; padding: 8px 12px; margin-bottom: 10px;
+  background: var(--bg-input); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-size: 13px; font-family: var(--font);
+  transition: var(--transition);
+}
+.quick-add:focus { outline: none; border-color: var(--accent); }
+.quick-add::placeholder { color: var(--text-muted); }
 
 /* ----- Person selector ----- */
 .person-selector {
@@ -131,6 +176,7 @@ body {
   font-size: 11px; font-weight: 600; cursor: pointer; transition: var(--transition);
 }
 .range-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.range-btn:not(.active):hover { background: var(--accent-2); color: #fff; border-color: var(--accent-2); }
 
 /* ----- Event list ----- */
 .event-list { display: flex; flex-direction: column; gap: 6px; }
@@ -141,6 +187,10 @@ body {
   margin: 8px 0 2px 0; padding: 2px 0;
   border-bottom: 1px solid var(--border);
 }
+.day-header.today {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
 
 .event-card {
   display: flex; gap: 10px; padding: 10px 12px;
@@ -148,9 +198,11 @@ body {
   border-left: 4px solid var(--accent);
   cursor: pointer; transition: var(--transition);
   align-items: flex-start;
+  animation: card-in 0.3s ease both;
 }
 .event-card:hover { background: var(--bg-hover); }
 .event-card.allday { border-left-style: dashed; }
+.event-card.today-card { background: color-mix(in srgb, var(--bg-hover) 50%, var(--bg-card)); }
 
 .event-time {
   font-size: 12px; color: var(--text-dim); font-weight: 600;
@@ -170,10 +222,40 @@ body {
   font-weight: 600;
 }
 
-.empty-state {
-  text-align: center; padding: 40px 20px; color: var(--text-muted);
+/* Staggered card entry */
+@keyframes card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Everyone tab uses accent-2 for card borders */
+#panel-everyone .event-card { border-left-color: var(--accent-2); }
+
+/* ----- Skeleton loading ----- */
+.skeleton-card {
+  display: flex; gap: 10px; padding: 10px 12px;
+  background: var(--bg-card); border-radius: var(--radius-sm);
+  border-left: 4px solid var(--skeleton);
 }
-.empty-state .emoji { font-size: 40px; display: block; margin-bottom: 8px; }
+.skeleton-bar {
+  height: 12px; background: var(--skeleton); border-radius: 6px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+.skeleton-bar.short { width: 40%; }
+.skeleton-bar.medium { width: 70%; }
+.skeleton-bar.long { width: 90%; }
+.skeleton-bar.h10 { height: 10px; }
+.skeleton-bar.h14 { height: 14px; }
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* ----- Empty states ----- */
+.empty-state {
+  text-align: center; padding: 48px 20px; color: var(--text-muted);
+}
+.empty-state .emoji { font-size: 48px; display: block; margin-bottom: 12px; }
+.empty-state p { font-size: 14px; margin-bottom: 16px; }
+.empty-state .btn-secondary { font-size: 12px; display: inline-block; }
 
 /* ----- Notes ----- */
 .notes-toolbar {
@@ -201,11 +283,43 @@ body {
 .note-card {
   padding: 12px; background: var(--bg-card);
   border-radius: var(--radius-sm); border-left: 4px solid var(--accent);
-  transition: var(--transition); position: relative;
+  transition: transform 0.2s ease, opacity 0.2s ease, background var(--transition);
+  position: relative; overflow: hidden;
+  animation: card-in 0.3s ease both;
+  touch-action: pan-y;
 }
 .note-card:hover { background: var(--bg-hover); }
 .note-card.done { opacity: 0.5; }
 .note-card.done .note-text { text-decoration: line-through; }
+
+/* High importance */
+.note-card.importance-high {
+  border-left-width: 6px;
+  border-left-color: var(--danger);
+}
+/* Pinned note */
+.note-card.pinned {
+  border-left-color: var(--warning);
+}
+.note-card .pin-icon {
+  position: absolute; top: 8px; right: 12px;
+  font-size: 14px; opacity: 0.5;
+}
+
+/* Swipe action reveal */
+.note-card-inner {
+  position: relative; z-index: 1; background: inherit;
+}
+.note-actions-bg {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  display: flex; align-items: stretch; z-index: 0;
+}
+.note-actions-bg button {
+  width: 72px; border: none; color: #fff; font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: var(--transition);
+}
+.note-actions-bg .swipe-done { background: var(--success); }
+.note-actions-bg .swipe-archive { background: var(--danger); }
 
 .note-header {
   display: flex; gap: 8px; align-items: center; margin-bottom: 4px;
@@ -218,9 +332,7 @@ body {
   border-radius: 10px; background: var(--bg-input);
 }
 .note-text { font-size: 14px; line-height: 1.4; color: var(--text); }
-.note-category {
-  font-size: 10px; color: var(--text-dim); margin-top: 4px;
-}
+.note-category { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
 .note-actions {
   display: flex; gap: 6px; margin-top: 8px;
 }
@@ -230,6 +342,8 @@ body {
   color: var(--text-dim); cursor: pointer; transition: var(--transition);
 }
 .note-actions button:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.note-actions .btn-done:hover { background: var(--success); color: #000; border-color: var(--success); }
+.note-actions .btn-pin:hover { background: var(--warning); color: #000; border-color: var(--warning); }
 
 /* ----- Footer ----- */
 #footer {
@@ -334,24 +448,50 @@ form textarea { resize: vertical; min-height: 60px; }
 }
 .toggle-label input[type=checkbox] { width: auto; }
 .about-text { font-size: 12px; color: var(--text-muted); }
+.version-text {
+  font-size: 13px; color: var(--text-dim); font-weight: 600;
+}
 
 /* ----- Toast ----- */
 #toast-container {
   position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
   z-index: 200; display: flex; flex-direction: column; gap: 6px;
-  pointer-events: none;
+  pointer-events: auto;
 }
 .toast {
   padding: 8px 16px; border-radius: 20px; background: var(--bg-card);
   color: var(--text); font-size: 13px; font-weight: 600;
   box-shadow: var(--shadow); animation: toast-in 0.3s ease, toast-out 0.3s ease 2.5s forwards;
   text-align: center; white-space: nowrap;
+  border-left: 3px solid var(--accent);
 }
-.toast.success { border: 1px solid var(--success); }
-.toast.error   { border: 1px solid var(--danger); }
+.toast.success { border-left-color: var(--success); }
+.toast.error   { border-left-color: var(--danger); }
+.toast.undo    { animation: toast-in 0.3s ease; }
+.toast.undo    { border-left-color: var(--warning); }
+.toast .toast-action {
+  margin-left: 10px; color: var(--accent-2); cursor: pointer; font-weight: 700;
+  border: none; background: none; font-family: var(--font); font-size: 13px;
+}
+.toast .toast-action:hover { text-decoration: underline; }
 
 @keyframes toast-in  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes toast-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* ----- Accessibility ----- */
+:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 /* ----- Utilities ----- */
 .hidden { display: none !important; }
