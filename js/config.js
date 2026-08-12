@@ -29,7 +29,7 @@ const CONFIG = {
   defaultTab: 'myday',
 
   // App version (shown in Settings)
-  version: '2.0.1',
+  version: '2.0.2',
 };
 
 // Notes categories (editable in settings)

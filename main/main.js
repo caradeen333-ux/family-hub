@@ -37,7 +37,11 @@ function createWindow() {
   });
 
   mainWindow.setTitle('Family Hub');
-  mainWindow.loadURL(APP_URL);
+
+  // Clear HTTP cache then load — ensures fresh content every launch
+  mainWindow.webContents.session.clearCache().then(() => {
+    mainWindow.loadURL(APP_URL);
+  });
 
   // Open external links in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
