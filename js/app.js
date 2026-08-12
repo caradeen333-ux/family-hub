@@ -4,10 +4,12 @@
 document.addEventListener('DOMContentLoaded', async () => {
   updateHeaderDate();
   applyTheme();
-  loadSettings();
 
   // RESTORE saved auth token from localStorage (survives power-off/restart)
   loadToken();
+
+  // Settings AFTER token load so sheet backup/restore can use the token
+  loadSettings();
 
   // If token is expired but we have a refresh token, try refreshing silently
   if (!isSignedIn() && localStorage.getItem('fh_refresh_token')) {
@@ -25,6 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (authResult !== null) {
     if (authResult.success) {
       toast('Signed in!', 'success');
+      await syncPeopleConfig(); // Restore calendar emails from sheet if this device lost them
       await autoConfigureCalendars();
       await loadAllData();
     } else {
@@ -523,6 +526,9 @@ function loadSettings() {
   } catch (e) { /* */ }
 
   renderPersonPicker(savedPerson || defaultPerson);
+
+  // Back up / restore people config (calendar emails) to the Google Sheet
+  if (isSignedIn()) syncPeopleConfig();
 }
 
 function renderPeopleConfig() {
@@ -542,6 +548,7 @@ function renderPeopleConfig() {
       const field = input.dataset.field;
       CONFIG.people[idx][field] = input.value;
       localStorage.setItem('fh_people', JSON.stringify(CONFIG.people));
+      savePeopleConfigToSheet(); // Back up to the sheet so a device wipe can't lose the emails
       renderPersonPicker(getSelectedPerson());
     });
   });

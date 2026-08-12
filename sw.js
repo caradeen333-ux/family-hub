@@ -1,7 +1,7 @@
 // sw.js — Service Worker for Family Hub PWA
 // Caches app shell for offline, serves cached content, handles background sync
 
-const CACHE_NAME = 'family-hub-v4';
+const CACHE_NAME = 'family-hub-v5';
 const APP_SHELL = [
   '.',
   'index.html',
@@ -11,6 +11,7 @@ const APP_SHELL = [
   'js/auth.js',
   'js/calendar.js',
   'js/notes.js',
+  'js/config-sync.js',
   'js/ui.js',
   'js/app.js',
   'manifest.json',
