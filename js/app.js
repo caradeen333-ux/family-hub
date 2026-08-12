@@ -161,7 +161,7 @@ async function loadCachedData() {
 }
 
 // ===== EVENT LISTENERS =====
-let currentRange = 7; // Default: Week
+let currentRange = 1; // Default: Day
 
 function setupEventListeners() {
   // Day/Week/Month range buttons
@@ -174,7 +174,11 @@ function setupEventListeners() {
         b.classList.toggle('active', parseInt(b.dataset.range) === range);
       });
       // Refetch and re-render current tab
-      await refreshCurrentTab();
+      try {
+        await refreshCurrentTab();
+      } catch (e) {
+        console.error('Range refresh error:', e);
+      }
     });
   });
 

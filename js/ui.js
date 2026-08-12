@@ -28,6 +28,12 @@ function switchTab(tabName) {
   document.querySelectorAll('.panel').forEach(p => {
     p.classList.toggle('active', p.id === `panel-${tabName}`);
   });
+  // Sync range buttons to match currentRange (global state)
+  if (typeof currentRange !== 'undefined') {
+    document.querySelectorAll('.range-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.range) === currentRange);
+    });
+  }
   localStorage.setItem('fh_tab', tabName);
 }
 
@@ -73,7 +79,9 @@ function renderEvents(containerId, events, showPersonChip = false) {
   }
 
   let html = '';
-  for (const [date, evs] of Object.entries(grouped)) {
+  // Sort dates to ensure correct order (defensive — cached data may be unsorted)
+  const sortedDates = Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b));
+  for (const [date, evs] of sortedDates) {
     const label = date === today
       ? 'Today'
       : new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -111,7 +119,6 @@ function attachEventHandlers() {
     card.addEventListener('click', () => {
       const calId = decodeURIComponent(card.dataset.calendarId);
       const eventId = card.dataset.eventId;
-      // For now, open in Google Calendar. Later: edit modal.
       if (eventId && calId) {
         window.open(`https://calendar.google.com/calendar/event?eid=${btoa(eventId)}`, '_blank');
       }
@@ -227,6 +234,8 @@ function attachNoteFilterHandlers() {
       if (filterType === 'category')   noteFilters.category = noteFilters.category === value ? null : value;
       renderNoteFilters();
       renderNotes();
+      attachNoteFilterHandlers();
+      attachNoteActionHandlers();
     });
   });
 
@@ -236,6 +245,7 @@ function attachNoteFilterHandlers() {
     sortSel.addEventListener('change', () => {
       noteFilters.sort = sortSel.value;
       renderNotes();
+      attachNoteActionHandlers();
     });
   }
 }
@@ -255,6 +265,8 @@ function attachNoteActionHandlers() {
         note.updatedAt = new Date().toISOString();
         await cacheNotes(allNotes);
         renderNotes();
+        renderNoteFilters();
+        attachNoteFilterHandlers();
         attachNoteActionHandlers();
       } catch (err) {
         toast('Failed to update note', 'error');
@@ -284,6 +296,8 @@ function attachNoteActionHandlers() {
           allNotes = allNotes.filter(n => n.rowIndex !== rowIndex);
           await cacheNotes(allNotes);
           renderNotes();
+          renderNoteFilters();
+          attachNoteFilterHandlers();
           attachNoteActionHandlers();
           toast('Note archived', 'success');
         } catch (err) {
