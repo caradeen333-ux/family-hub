@@ -372,19 +372,34 @@ function setupEventListeners() {
 
   // Theme toggle button
   document.getElementById('btn-theme').addEventListener('click', () => {
-    const dark = !document.body.classList.contains('light');
-    document.body.classList.toggle('light', !dark);
-    localStorage.setItem('fh_darkmode', dark);
-    document.getElementById('btn-theme').textContent = dark ? '🌙' : '☀️';
-    document.getElementById('setting-darkmode').checked = dark;
+    document.body.classList.toggle('light');
+    const isDark = !document.body.classList.contains('light');
+    localStorage.setItem('fh_darkmode', isDark);
+    document.getElementById('btn-theme').textContent = isDark ? '🌙' : '☀️';
+    document.getElementById('setting-darkmode').checked = isDark;
+  });
+
+  // Quick-add note: toggle button shows/hides the inline input
+  const quickForm = document.querySelector('.quick-add-form');
+  const quickInput = document.getElementById('quick-note-input');
+  const quickToggle = document.getElementById('btn-quick-add');
+
+  quickToggle.addEventListener('click', () => {
+    quickForm.classList.toggle('hidden');
+    if (!quickForm.classList.contains('hidden')) quickInput.focus();
+  });
+
+  document.getElementById('btn-quick-cancel').addEventListener('click', () => {
+    quickForm.classList.add('hidden');
+    quickInput.value = '';
   });
 
   // Quick-add note (Enter to save)
-  document.getElementById('quick-note-input').addEventListener('keydown', async (e) => {
-    if (e.key !== 'Enter' || !e.target.value.trim()) return;
-    const input = e.target;
-    const text = input.value.trim();
-    input.value = '';
+  quickInput.addEventListener('keydown', async (e) => {
+    if (e.key !== 'Enter' || !quickInput.value.trim()) return;
+    const text = quickInput.value.trim();
+    quickInput.value = '';
+    quickForm.classList.add('hidden');
     const author = getSelectedPerson() || CONFIG.people[0]?.name || 'Mike';
     const noteData = {
       id: generateId(),
@@ -536,6 +551,8 @@ function applyTheme() {
   const dark = localStorage.getItem('fh_darkmode') !== 'false'; // default dark
   document.body.classList.toggle('light', !dark);
   document.getElementById('setting-darkmode').checked = dark;
+  const themeBtn = document.getElementById('btn-theme');
+  if (themeBtn) themeBtn.textContent = dark ? '🌙' : '☀️';
 }
 
 // ===== SERVICE WORKER =====

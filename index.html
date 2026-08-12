@@ -63,8 +63,12 @@
 
   <!-- Notes tab -->
   <section id="panel-notes" class="panel" role="tabpanel" aria-labelledby="tab-notes">
-    <div class="quick-add">
-      <input id="quick-note-input" type="text" placeholder="Type a note and press Enter..." aria-label="Quick-add note">
+    <div class="quick-add-bar">
+      <button id="btn-quick-add" class="btn-secondary quick-add-toggle">+ Quick Note</button>
+      <div class="quick-add-form hidden">
+        <input id="quick-note-input" type="text" placeholder="Type and press Enter..." aria-label="Quick note">
+        <button id="btn-quick-cancel" class="btn-cancel quick-cancel" aria-label="Cancel">✕</button>
+      </div>
     </div>
     <div class="notes-toolbar">
       <div class="filter-chips" id="filter-importance"></div>

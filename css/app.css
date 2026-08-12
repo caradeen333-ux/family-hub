@@ -145,15 +145,26 @@ body {
 .pull-indicator.active { height: 40px; padding: 8px 0; }
 
 /* ----- Quick-add note bar ----- */
-.quick-add {
-  width: 100%; padding: 8px 12px; margin-bottom: 10px;
-  background: var(--bg-input); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  font-size: 13px; font-family: var(--font);
-  transition: var(--transition);
+.quick-add-bar {
+  margin-bottom: 10px;
 }
-.quick-add:focus { outline: none; border-color: var(--accent); }
-.quick-add::placeholder { color: var(--text-muted); }
+.quick-add-toggle {
+  width: 100%; text-align: center; font-size: 13px;
+}
+.quick-add-form {
+  display: flex; gap: 6px; margin-top: 6px;
+}
+.quick-add-form input {
+  flex: 1; padding: 8px 10px; font-size: 13px; font-family: var(--font);
+  background: var(--bg-input); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  -webkit-appearance: none; appearance: none;
+}
+.quick-add-form input:focus { outline: none; border-color: var(--accent); }
+.quick-add-form input::placeholder { color: var(--text-muted); }
+.quick-cancel {
+  padding: 8px 10px; font-size: 13px;
+}
 
 /* ----- Person selector ----- */
 .person-selector {
@@ -501,32 +512,47 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-/* ----- Mobile phones (under 400px) ----- */
-@media (max-width: 399px) {
+/* ----- Mobile phones ----- */
+@media (max-width: 499px) {
   :root {
     --header-h: 48px;
     --radius: 8px;
     --radius-sm: 6px;
   }
-  #header { padding: 0 6px; }
-  .header-left { flex: 0; font-size: 10px; }
-  #header-date { display: block; max-width: 32px; overflow: hidden; white-space: nowrap; }
-  .tab { padding: 5px 8px; font-size: 11px; }
-  .icon-btn { width: 36px; height: 36px; font-size: 20px; }
-  .person-selector { font-size: 12px; }
-  .range-btn { padding: 4px 8px; font-size: 10px; }
+  #header { padding: 0 4px; }
+  .header-left { display: none; }
+  .header-center { flex: 1; }
+  #tab-bar { width: 100%; }
+  .tab { flex: 1; text-align: center; padding: 7px 6px; font-size: 12px; min-height: 34px; }
+  #header-date { font-size: 10px; }
+  .icon-btn { width: 40px; height: 40px; font-size: 20px; }
+  .theme-toggle { width: 34px; height: 34px; }
+  .header-right { gap: 1px; }
+  .person-selector { font-size: 12px; margin-bottom: 10px; }
+  .range-btn { padding: 5px 10px; font-size: 11px; min-height: 30px; }
   .event-time { font-size: 10px; min-width: 44px; }
   .event-title { font-size: 13px; }
+  .event-card { padding: 10px; gap: 8px; }
   .note-text { font-size: 13px; }
+  .note-card { padding: 10px; }
+  .note-actions button { padding: 5px 10px; font-size: 12px; min-height: 34px; }
+  .filter-chip { padding: 5px 10px; font-size: 11px; min-height: 30px; }
   #main { padding: 8px; }
+  .fab { width: 52px; height: 52px; font-size: 28px; bottom: 48px; right: 12px; }
+  .modal { max-width: 95vw; padding: 16px; }
+  .btn-primary, .btn-secondary, .btn-cancel, .btn-danger { padding: 10px 20px; font-size: 14px; min-height: 44px; }
+  .quick-add-toggle { min-height: 44px; font-size: 14px; }
+  .quick-add-form input { min-height: 40px; }
+  .quick-cancel { min-height: 40px; min-width: 40px; }
+  form input, form select, form textarea { padding: 10px 12px; font-size: 16px; }
 }
 
-/* ----- Desktop (PWA standalone or wider screens) ----- */
+/* ----- Desktop (wider screens) ----- */
 @media (min-width: 500px) {
   body { max-width: 480px; margin: 0 auto; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
 }
 
-/* ----- Desktop always-on-top widget mode (when installed as PWA) ----- */
+/* ----- Desktop always-on-top widget mode ----- */
 @media (display-mode: standalone) and (min-width: 500px) {
   html, body { height: 100vh; max-height: 100vh; border-radius: 0; }
 }
