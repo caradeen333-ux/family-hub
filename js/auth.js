@@ -50,7 +50,12 @@ async function signIn() {
   authUrl.searchParams.set('code_challenge', codeChallenge);
   authUrl.searchParams.set('code_challenge_method', 'S256');
   authUrl.searchParams.set('access_type', 'offline');
-  authUrl.searchParams.set('prompt', 'consent');
+  // Only force consent when this device has no refresh token yet.
+  // prompt=consent on every sign-in mints a NEW refresh token each time,
+  // and Google revokes the oldest at ~50 per client -> random logouts.
+  if (!localStorage.getItem('fh_refresh_token')) {
+    authUrl.searchParams.set('prompt', 'consent');
+  }
 
   window.location.href = authUrl.toString();
 }
