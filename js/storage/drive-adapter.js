@@ -22,7 +22,8 @@ const RMW_RETRIES = 3;
 export class DriveAdapter {
   // fetchFn injectable for tests; getAccessToken() → Promise<access_token string>
   constructor({ fetchFn = fetch, getAccessToken, clock = () => Date.now() }) {
-    this.fetchFn = fetchFn;
+    // bind: window.fetch throws "Illegal invocation" unbound under strict ESM
+    this.fetchFn = (...args) => fetchFn(...args);
     this.getAccessToken = getAccessToken;
     this.clock = clock;
   }

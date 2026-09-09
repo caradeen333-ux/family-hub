@@ -82,20 +82,21 @@ export function buildView(events, { now }) {
   for (const ev of keyWinners.values()) {
     switch (ev.type) {
       case 'note.upsert':
-        notes.set(ev.payload.noteId, ev.payload);
+        // enrich with the event's author/ts — the UI needs both
+        notes.set(ev.payload.noteId, { ...ev.payload, author: ev.author, ts: ev.ts });
         break;
       case 'note.tombstone':
         notes.delete(ev.payload.noteId);
         break;
       case 'chore.upsert':
-        chores.set(ev.payload.choreId, ev.payload);
+        chores.set(ev.payload.choreId, { ...ev.payload, author: ev.author, ts: ev.ts });
         break;
       case 'chore.tombstone':
         chores.delete(ev.payload.choreId);
         break;
       case 'poll.created': {
         const votes = pollStates.get(ev.payload.pollId)?.votes ?? new Map();
-        pollStates.set(ev.payload.pollId, { poll: ev.payload, votes });
+        pollStates.set(ev.payload.pollId, { poll: { ...ev.payload, author: ev.author }, votes });
         break;
       }
       case 'poll.closed':

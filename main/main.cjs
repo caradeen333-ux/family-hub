@@ -1,23 +1,165 @@
-// main.js — Electron wrapper for Family Hub PWA
-// Loads PWA, injects client secret at runtime (never in public code)
+// main.cjs — Electron shell for Family Hub (Phase 5).
+//
+//  - Serves the local site/ bundle over a local HTTP server on a fixed port
+//    (http://127.0.0.1:41073). Local HTTP, NOT a custom scheme: Electron's
+//    custom-scheme localStorage is never persisted to disk — tokens would die
+//    on every restart, violating requirement #1 (logins must stay stable).
+//    Localhost HTTP is a secure context, persists localStorage, and keeps a
+//    stable origin across app updates.
+//  - OAuth: main-process loopback HTTP server on port 0 → opens Google in the
+//    default browser → Google redirects to http://localhost:<port>/callback →
+//    main validates state and exchanges the code in Node (no CORS issues)
+//  - NO SECRETS anywhere. Public clients only.
 
-const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, session } = require('electron');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
+const crypto = require('crypto');
 
-const APP_URL = 'https://caradeen333-ux.github.io/family-hub/';
+// FH_TEST_PROFILE=1 → isolated userData in the temp dir (Playwright tests).
+// The production app on this machine holds its own storage lock; tests must
+// never fight it — and must never touch real family data.
+if (process.env.FH_TEST_PROFILE === '1') {
+  app.setPath('userData', path.join(os.tmpdir(), 'family-hub-test-profile'));
+}
+
+const SITE_DIR = path.join(__dirname, '..', 'site');
+const APP_PORT = 41073; // fixed port = stable origin = tokens survive updates
+let APP_URL = null;
+const CLIENT_ID = '251957454378-5sp17im5fa0d8vu5c13h4dsg32gdk6b3.apps.googleusercontent.com';
+const SCOPES = 'openid https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file';
 
 let mainWindow;
+let pendingOauth = null; // {resolve, reject, state}
+
+// ---------- local bundle server ----------
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json',
+};
+
+function startBundleServer() {
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url, 'http://127.0.0.1');
+    let filePath = decodeURIComponent(url.pathname);
+    if (filePath === '/' || filePath === '') filePath = '/index.html';
+    const full = path.normalize(path.join(SITE_DIR, filePath));
+
+    if (!full.startsWith(SITE_DIR)) {
+      res.writeHead(403).end();
+      return;
+    }
+    fs.readFile(full, (err, data) => {
+      if (err) {
+        res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(full)] ?? 'application/octet-stream' });
+      res.end(data);
+    });
+  });
+
+  return new Promise((resolve) => {
+    const onError = (err) => {
+      if (err.code === 'EADDRINUSE') {
+        // Fixed port taken — fall back to an ephemeral one (origin shifts, but
+        // only if something else grabbed the port)
+        server.listen(0, '127.0.0.1');
+      } else {
+        console.error('Family Hub bundle server failed:', err.message);
+        app.quit();
+      }
+    };
+    server.once('error', onError);
+    server.listen(APP_PORT, '127.0.0.1', () => {
+      server.removeListener('error', onError);
+      APP_URL = `http://127.0.0.1:${server.address().port}/index.html`;
+      resolve();
+    });
+  });
+}
+
+// ---------- loopback OAuth ----------
+
+async function startLoopbackOauth() {
+  return new Promise((resolve, reject) => {
+    const state = crypto.randomBytes(16).toString('hex');
+    const server = http.createServer(async (req, res) => {
+      const url = new URL(req.url, 'http://localhost');
+      if (url.pathname !== '/callback') {
+        res.writeHead(404).end();
+        return;
+      }
+      server.close();
+      pendingOauth = null;
+
+      try {
+        if (url.searchParams.get('state') !== state) throw new Error('state mismatch');
+        const error = url.searchParams.get('error');
+        if (error) throw new Error(error);
+        const code = url.searchParams.get('code');
+
+        const body = new URLSearchParams({
+          code,
+          client_id: CLIENT_ID,
+          grant_type: 'authorization_code',
+          redirect_uri: 'http://localhost', // loopback — Google accepts this form
+          scope: SCOPES,
+        });
+        // Public client: no secret. PKCE isn't used for the Desktop-app-type
+        // client; Google returns tokens directly.
+        const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        });
+        const tokenData = await tokenResp.json();
+        if (!tokenResp.ok) throw new Error(tokenData.error_description || tokenData.error);
+
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body style="font-family:sans-serif;background:#0d0f1a;color:#eef0fa;display:grid;place-items:center;height:100vh"><div style="text-align:center"><h2>✓ Signed in</h2><p>You can close this tab.</p></div></body></html>');
+
+        resolve({ ok: true, tokens: tokenData });
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body><p>Sign-in failed: ' + err.message + '</p></body></html>');
+        resolve({ ok: false, error: err.message });
+      }
+    });
+
+    server.listen(0, '127.0.0.1', () => {
+      const port = server.address().port;
+      const authorizeUrl =
+        'https://accounts.google.com/o/oauth2/v2/auth?' +
+        new URLSearchParams({
+          client_id: CLIENT_ID,
+          redirect_uri: `http://localhost:${port}/callback`,
+          response_type: 'code',
+          scope: SCOPES,
+          state,
+        });
+      shell.openExternal(authorizeUrl);
+    });
+  });
+}
+
+// ---------- window ----------
 
 function createWindow() {
-  // Read always-on-top preference
   let alwaysOnTop = false;
   try {
     const prefsPath = path.join(app.getPath('userData'), 'prefs.json');
     if (fs.existsSync(prefsPath)) {
       alwaysOnTop = JSON.parse(fs.readFileSync(prefsPath, 'utf8')).alwaysOnTop || false;
     }
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 
   mainWindow = new BrowserWindow({
     width: 500,
@@ -28,6 +170,8 @@ function createWindow() {
     resizable: true,
     alwaysOnTop,
     skipTaskbar: false,
+    // FH_HIDDEN=1 → test mode: never pop a window on the user's screen
+    show: process.env.FH_HIDDEN !== '1',
     icon: path.join(__dirname, '..', 'icons', 'icon-512.png'),
     webPreferences: {
       contextIsolation: true,
@@ -37,46 +181,60 @@ function createWindow() {
   });
 
   mainWindow.setTitle('Family Hub');
+  mainWindow.loadURL(APP_URL); // local bundle — no cache clearing, ever
 
-  // Clear HTTP cache then load — ensures fresh content every launch
-  mainWindow.webContents.session.clearCache().then(() => {
-    mainWindow.loadURL(APP_URL);
-  });
-
-  // Open external links in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
   });
 }
 
-// IPC: app version (single version source is package.json)
-ipcMain.handle('app-version', () => app.getVersion());
+// ---------- IPC ----------
 
-// IPC: toggle always-on-top
+ipcMain.handle('app-version', () => app.getVersion());
+ipcMain.handle('oauth:start', async () => startLoopbackOauth());
+ipcMain.handle('oauth:refresh', async (_event, refreshToken) => {
+  const body = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: CLIENT_ID,
+    refresh_token: refreshToken,
+  });
+  const resp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    const err = new Error(data.error_description || data.error || 'refresh failed');
+    err.code = data.error;
+    throw err;
+  }
+  return data;
+});
 ipcMain.on('set-always-on-top', (_event, onTop) => {
   if (mainWindow) mainWindow.setAlwaysOnTop(onTop);
   try {
     const prefsPath = path.join(app.getPath('userData'), 'prefs.json');
     fs.writeFileSync(prefsPath, JSON.stringify({ alwaysOnTop: onTop }));
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
 });
 
-app.whenReady().then(() => {
-  // Only clear cache on first run after update (version check)
-  const ses = require('electron').session.defaultSession;
+// ---------- lifecycle ----------
+
+app.whenReady().then(async () => {
+  await startBundleServer();
+  // First launch after an update: swap the old service worker cache for the
+  // new shell — localStorage (tokens) is NOT touched.
   const currentVersion = app.getVersion();
   const versionPath = path.join(app.getPath('userData'), 'version.txt');
-  const lastVersion = fs.existsSync(versionPath)
-    ? fs.readFileSync(versionPath, 'utf8').trim()
-    : '';
+  const lastVersion = fs.existsSync(versionPath) ? fs.readFileSync(versionPath, 'utf8').trim() : '';
   if (currentVersion !== lastVersion) {
-    ses.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
+    session.defaultSession.clearStorageData({ storages: ['serviceworkers', 'cachestorage'] });
     fs.writeFileSync(versionPath, currentVersion);
   }
 
   createWindow();
-
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -84,4 +242,9 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Tokens must survive abrupt exits: force DOM storage to disk on quit
+app.on('before-quit', () => {
+  session.defaultSession.flushStorageData();
 });

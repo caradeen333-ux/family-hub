@@ -1,126 +1,88 @@
-// calendar.js — Google Calendar API wrapper
-// Fetch, cache, create events. All via REST (no gapi library needed).
+// calendar.js — Google Calendar REST wrapper (ESM).
+// All requests go through fetchWithAuth: one refresh on 401, single retry,
+// no unbounded recursion. Calendar mutations carry a clientKey so offline
+// replays can check-before-create and never double-post.
+
+import { fetchWithAuth } from './auth/token.js';
+import { clock } from './testing/clock.js';
 
 const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
+const CLIENT_KEY_PROP = 'familyHubClientKey';
 
-// Auto-discover shared calendars on first sign-in
-// Returns a map of calendar summary/email → calendarId
-async function discoverCalendars() {
-  const token = getAccessToken();
-  if (!token) throw new Error('Not signed in');
-
+// Auto-discover shared calendars (accessRole kept for the UI)
+export async function discoverCalendars() {
   const url = `${CALENDAR_API}/users/me/calendarList`;
-  const resp = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
+  const resp = await fetchWithAuth(url);
   if (!resp.ok) throw new Error(`Calendar list failed (${resp.status})`);
   const data = await resp.json();
 
   const calendars = {};
   for (const entry of (data.items || [])) {
-    const id = entry.id;
-    // Key by email, summary, and id for flexible matching
-    calendars[id] = { id, summary: entry.summary, accessRole: entry.accessRole };
-    if (entry.id.includes('@')) calendars[entry.id.toLowerCase()] = { id, summary: entry.summary, accessRole: entry.accessRole };
+    calendars[entry.id] = { id: entry.id, summary: entry.summary, accessRole: entry.accessRole };
   }
-
   return calendars;
 }
 
-// Fetch all configured calendars and return merged, normalized events
-// Default: today + 6 days = a full week view
-async function fetchTodayEvents(days = 7) {
-  const token = getAccessToken();
-  if (!token) throw new Error('Not signed in');
-
-  // Window: start of today → end of day N days from now
-  const now = new Date();
+// Fetch all configured calendars and return merged, normalized events.
+// `calendars`: [{calendarId, name, color}] — comes from merged config.
+export async function fetchCalendarEvents(calendars, { days = 7, now = new Date(clock.now()) } = {}) {
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfDay   = new Date(startOfDay.getTime() + days * 24 * 60 * 60 * 1000);
-
+  const endOfDay = new Date(startOfDay.getTime() + days * 24 * 60 * 60 * 1000);
   const timeMin = startOfDay.toISOString();
   const timeMax = endOfDay.toISOString();
 
   const allEvents = [];
-
-  for (const person of CONFIG.people) {
-    const calId = person.calendarId;
-    if (!calId) continue; // Skip unconfigured
-
-    const url = new URL(`${CALENDAR_API}/calendars/${encodeURIComponent(calId)}/events`);
+  for (const person of calendars) {
+    if (!person.calendarId) continue;
+    const url = new URL(`${CALENDAR_API}/calendars/${encodeURIComponent(person.calendarId)}/events`);
     url.searchParams.set('timeMin', timeMin);
     url.searchParams.set('timeMax', timeMax);
     url.searchParams.set('singleEvents', 'true');
     url.searchParams.set('orderBy', 'startTime');
     url.searchParams.set('maxResults', '50');
 
-    try {
-      const resp = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!resp.ok) {
-        if (resp.status === 401) {
-          // Token expired — try refresh
-          const refreshed = await refreshToken();
-          if (refreshed) return fetchTodayEvents(); // Retry with new token
-        }
-        console.error(`Calendar fetch failed for ${person.name}:`, resp.status);
-        continue;
-      }
-      const data = await resp.json();
-      for (const ev of (data.items || [])) {
-        allEvents.push(normalizeEvent(ev, person));
-      }
-    } catch (e) {
-      console.error(`Calendar fetch error for ${person.name}:`, e);
+    const resp = await fetchWithAuth(url);
+    if (!resp.ok) {
+      console.error(`Calendar fetch failed for ${person.name}:`, resp.status);
+      continue;
     }
+    const data = await resp.json();
+    for (const ev of (data.items || [])) allEvents.push(normalizeEvent(ev, person));
   }
 
-  // Sort by date first, then within same date: all-day before timed, then by time
   allEvents.sort((a, b) => {
-    // Sort by date first
     const dateA = a.date || '';
     const dateB = b.date || '';
     if (dateA !== dateB) return dateA.localeCompare(dateB);
-    // Same date: all-day events before timed events
     if (a.allDay && !b.allDay) return -1;
     if (!a.allDay && b.allDay) return 1;
-    // Same date + same type: sort by start time
-    const sa = a.startTime || a.date;
-    const sb = b.startTime || b.date;
-    return sa.localeCompare(sb);
+    return (a.startTime || a.date).localeCompare(b.startTime || b.date);
   });
-
   return allEvents;
 }
 
 // Normalize a Google Calendar event into our simplified format
-function normalizeEvent(ev, person) {
-  const allDay = !!ev.start.date; // all-day events use .date not .dateTime
+export function normalizeEvent(ev, person) {
+  const allDay = !!ev.start?.date;
   return {
     id: ev.id,
     calendarId: person.calendarId,
     personName: person.name,
     personColor: person.color,
     title: ev.summary || '(untitled)',
-    date: ev.start.date || ev.start.dateTime?.split('T')[0],
-    startTime: allDay ? null : (ev.start.dateTime || null),
-    endTime: allDay ? null : (ev.end.dateTime || null),
+    date: ev.start?.date || ev.start?.dateTime?.split('T')[0] || '',
+    startTime: allDay ? null : ev.start?.dateTime ?? null,
+    endTime: allDay ? null : ev.end?.dateTime ?? null,
     allDay,
     location: ev.location || '',
     description: ev.description || '',
     link: ev.htmlLink || '',
-    status: ev.status, // 'confirmed', 'tentative', 'cancelled'
+    status: ev.status,
     recurringEventId: ev.recurringEventId || null,
   };
 }
 
-// Create an event via the Calendar API
-async function createEvent({ calendarId, title, date, startTime, endTime, allDay, location, description }) {
-  const token = getAccessToken();
-  if (!token) throw new Error('Not signed in');
-
+function eventBody({ title, date, startTime, endTime, allDay, location, description, clientKey }) {
   let start, end;
   if (allDay) {
     start = { date };
@@ -130,65 +92,68 @@ async function createEvent({ calendarId, title, date, startTime, endTime, allDay
   } else {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     start = { dateTime: `${date}T${startTime || '00:00'}:00`, timeZone: tz };
-    end   = { dateTime: `${date}T${endTime || '23:59'}:00`, timeZone: tz };
+    end = { dateTime: `${date}T${endTime || '23:59'}:00`, timeZone: tz };
   }
-
-  const resource = {
+  return {
     summary: title,
     start,
     end,
     location: location || undefined,
     description: description || undefined,
+    extendedProperties: clientKey
+      ? { shared: { [CLIENT_KEY_PROP]: clientKey } }
+      : undefined,
   };
+}
 
+// Check-before-create: did a previous attempt with this clientKey already
+// land? (offline replay idempotency)
+export async function findEventByClientKey(calendarId, clientKey) {
+  const url = new URL(`${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`);
+  url.searchParams.set('privateExtendedProperty', `${CLIENT_KEY_PROP}=${clientKey}`);
+  url.searchParams.set('maxResults', '1');
+  const resp = await fetchWithAuth(url);
+  if (!resp.ok) throw new Error(`Event lookup failed (${resp.status})`);
+  return (await resp.json()).items?.[0] ?? null;
+}
+
+export async function createEvent({ calendarId, clientKey, ...fields }) {
+  if (clientKey) {
+    const existing = await findEventByClientKey(calendarId, clientKey).catch(() => null);
+    if (existing) return existing; // already created — replay is a no-op
+  }
   const url = `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithAuth(url, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(resource),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(eventBody({ ...fields, clientKey })),
   });
-
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err.error?.message || `Failed to create event (${resp.status})`);
   }
-
   return resp.json();
 }
 
-// Edit an existing event
-async function updateEvent(calendarId, eventId, updates) {
-  const token = getAccessToken();
-  if (!token) throw new Error('Not signed in');
-
+export async function updateEvent(calendarId, eventId, updates) {
   const url = `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`;
-  const resp = await fetch(url, {
+  const resp = await fetchWithAuth(url, {
     method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
   });
   if (!resp.ok) throw new Error(`Failed to update event (${resp.status})`);
   return resp.json();
 }
 
-// Delete an event
-async function deleteEvent(calendarId, eventId) {
-  const token = getAccessToken();
-  if (!token) throw new Error('Not signed in');
-
+export async function deleteEvent(calendarId, eventId) {
   const url = `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`;
-  const resp = await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  const resp = await fetchWithAuth(url, { method: 'DELETE' });
   if (!resp.ok) throw new Error(`Failed to delete event (${resp.status})`);
 }
 
-// Format time for display
-function formatTime(isoString) {
+// Format time for display ("5 PM", "5:30 PM")
+export function formatTime(isoString) {
   if (!isoString) return '';
   const d = new Date(isoString);
   let h = d.getHours();
