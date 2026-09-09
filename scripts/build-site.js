@@ -1,10 +1,11 @@
 // build-site.js — Assembles the deployable site/ directory for GitHub Pages
 // and generates js/version.js from package.json (single version source).
 // Run: node scripts/build-site.js
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = path.join(__dirname, '..');
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const site = path.join(root, 'site');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 

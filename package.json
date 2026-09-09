@@ -2,11 +2,12 @@
   "name": "family-hub",
   "version": "2.1.0",
   "description": "Shared family calendar & notes app",
-  "main": "main/main.js",
+  "main": "main/main.cjs",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder build --win --x64",
-    "build:site": "node scripts/build-site.js"
+    "build:site": "node scripts/build-site.js",
+    "test": "node --test \"tests/unit/*.test.js\""
   },
   "build": {
     "appId": "com.familyhub.app",
@@ -37,7 +38,7 @@
     "url": "git+https://github.com/caradeen333-ux/family-hub.git"
   },
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
     "electron": "^43.3.0",
     "electron-builder": "^26.15.3"
