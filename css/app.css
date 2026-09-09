@@ -910,7 +910,9 @@ label textarea { resize: vertical; min-height: 56px; }
   border: 1px solid var(--border);
   font-size: 13.5px;
 }
-.member-row .member-email { color: var(--text-3); font-size: 12px; }
+.member-row .member-email { color: var(--text-3); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-row.active-account { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+#auth-area .member-row { margin-bottom: 6px; }
 
 /* ---------- Toasts ---------- */
 
@@ -942,6 +944,29 @@ label textarea { resize: vertical; min-height: 56px; }
 .toast.leaving { animation: toast-out 240ms var(--ease) both; }
 @keyframes toast-in  { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes toast-out { to   { opacity: 0; transform: translateY(10px) scale(0.96); } }
+
+/* ---------- Pull-to-refresh ---------- */
+
+.pull-indicator {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%) translateY(calc(var(--pull, 0px) - 44px));
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 999px;
+  z-index: 90;
+  transition: transform 120ms var(--ease), color var(--dur) var(--ease);
+  pointer-events: none;
+}
+.pull-indicator.ready {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
 
 /* ---------- Offline pill ---------- */
 

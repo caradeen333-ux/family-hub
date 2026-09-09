@@ -6,6 +6,7 @@ import { sortedChores } from './chores.js';
 import { isPollOpen, leadingOptions, dinnerPollForToday, todayKey } from './votes.js';
 import { formatTime } from './calendar.js';
 import { renderMarkdown, wrapSelection, toggleLinePrefix } from './format.js';
+import { getAccounts, getActiveEmail } from './auth/token-store.js';
 import { clock } from './testing/clock.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -585,15 +586,34 @@ export function renderSettings({ members, dirState, account }) {
     list.replaceChildren(el('p', 'about-text', 'No members joined yet.'));
   }
 
-  // Account
+  // Account: switcher for every signed-in account on this device
   const area = $('#auth-area');
-  if (account) {
-    const row = el('div', 'member-row');
-    row.appendChild(el('span', 'avatar', (account.name || '?')[0].toUpperCase()));
-    row.appendChild(el('span', 'member-email', account.email));
-    area.replaceChildren(row, signOutButton());
-  } else {
+  const accounts = getAccounts();
+  const activeEmail = getActiveEmail();
+  const rows = [];
+  for (const [email, acc] of Object.entries(accounts)) {
+    const row = el('div', `member-row ${email === activeEmail ? 'active-account' : ''}`);
+    row.appendChild(el('span', 'avatar', (acc.name || email || '?')[0].toUpperCase()));
+    const info = el('span', 'member-email', email === activeEmail ? `${acc.name ?? email} · active` : `${acc.name ?? email} — ${email}`);
+    row.appendChild(info);
+    if (email !== activeEmail) {
+      const switchBtn = el('button', 'btn-secondary btn-xs', 'Switch');
+      switchBtn.addEventListener('click', () => {
+        document.dispatchEvent(new CustomEvent('fh:switch-account', { detail: { email } }));
+      });
+      row.appendChild(switchBtn);
+    }
+    rows.push(row);
+  }
+  if (!rows.length) {
     area.replaceChildren(el('p', 'about-text', 'Not signed in.'));
+  } else {
+    const addBtn = el('button', 'btn-secondary btn-sm', '+ Sign in as another account');
+    addBtn.style.marginTop = '10px';
+    addBtn.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('fh:add-account'));
+    });
+    area.replaceChildren(...rows, addBtn, signOutButton());
   }
 
   $('#app-version').textContent = 'v' + (window.APP_VERSION || 'dev');

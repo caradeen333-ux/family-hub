@@ -15,7 +15,7 @@ import {
   startProactiveRefresh,
   onAuthStateChange,
 } from './auth/token.js';
-import { getActiveAccount, updateAccount, clearLegacyTokens } from './auth/token-store.js';
+import { getActiveAccount, updateAccount, clearLegacyTokens, setActiveEmail } from './auth/token-store.js';
 import { SyncEngine, makeDriveAdapter } from './sync/sync-engine.js';
 import * as localDb from './storage/local-db.js';
 import { buildInviteLink, parseInvite, provisionFirstUser, joinFamily } from './provisioning.js';
@@ -57,7 +57,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     await engine.init();
     ui.showApp();
     ui.renderAccount(getActiveAccount());
+    // Always build a view from the local log — even with no cache and no
+    // network, the UI must render (a failed first sync must never blank it)
     if (engine.view) renderAll();
+    else {
+      await engine.remerge();
+      renderAll();
+    }
     // 2. Ensure token, then sync
     ensureValidToken()
       .then(() => engine.run())
@@ -93,6 +99,10 @@ async function bootAfterSignIn(invite) {
   ui.showApp();
   ui.renderAccount(getActiveAccount());
   if (engine.view) renderAll();
+  else {
+    await engine.remerge();
+    renderAll();
+  }
   await engine.run();
   await afterSync();
 }
@@ -509,6 +519,20 @@ function wireAppEvents() {
     }
   });
 
+  // Account switching (multi-account devices)
+  document.addEventListener('fh:switch-account', async (e) => {
+    ui.closeModal('modal-settings');
+    setActiveEmail(e.detail.email);
+    location.reload();
+  });
+  document.addEventListener('fh:add-account', async () => {
+    ui.closeModal('modal-settings');
+    await startSignIn(); // new account signs in; existing accounts untouched
+  });
+
+  // Pull-to-refresh (touch)
+  wirePullToRefresh();
+
   // Sync engine → view updates
   engine.onChange(({ type }) => {
     if (type === 'view') {
@@ -593,6 +617,64 @@ async function submitEventForm(e) {
   } catch (err) {
     ui.toast('Could not create event: ' + err.message, 'error');
   }
+}
+
+// ---------- pull-to-refresh (touch) ----------
+
+function wirePullToRefresh() {
+  const main = $('#main');
+  let indicator = null;
+  let startY = null;
+  let pulling = false;
+  const THRESHOLD = 70;
+
+  const ensureIndicator = () => {
+    if (indicator) return indicator;
+    indicator = document.createElement('div');
+    indicator.className = 'pull-indicator';
+    indicator.textContent = '↓ Pull to refresh';
+    document.body.appendChild(indicator);
+    return indicator;
+  };
+
+  main.addEventListener('touchstart', (e) => {
+    if (main.scrollTop > 0) return;
+    startY = e.touches[0].clientY;
+    pulling = false;
+  }, { passive: true });
+
+  main.addEventListener('touchmove', (e) => {
+    if (startY == null || main.scrollTop > 0) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy <= 0) return;
+    pulling = dy > 12;
+    const el = ensureIndicator();
+    const clamped = Math.min(dy, 110);
+    el.style.setProperty('--pull', clamped + 'px');
+    el.classList.toggle('pulling', pulling);
+    el.classList.toggle('ready', dy > THRESHOLD);
+    el.textContent = dy > THRESHOLD ? '↑ Release to refresh' : '↓ Pull to refresh';
+  }, { passive: true });
+
+  main.addEventListener('touchend', async () => {
+    if (!pulling || startY == null) { startY = null; return; }
+    const el = indicator;
+    indicator = null;
+    startY = null;
+    const dy = Number(el?.style.getPropertyValue('--pull').replace('px', '') ?? 0);
+    el?.classList.remove('pulling', 'ready');
+    el?.remove();
+    if (dy > THRESHOLD) {
+      ui.setSyncStatus('working', 'Refreshing…');
+      try {
+        await engine.run();
+        await loadCalendar();
+        ui.setSyncStatus('synced', 'Up to date');
+      } catch {
+        ui.setSyncStatus('error', 'Refresh failed');
+      }
+    }
+  }, { passive: true });
 }
 
 // ---------- service worker ----------

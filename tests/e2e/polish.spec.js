@@ -80,6 +80,21 @@ test('POL-05 chore modal creates with assignee + due date', async ({ page }) => 
   await expect(page.locator('.chore-due.overdue')).toBeVisible();
 });
 
+test('POL-07 account switcher lists and switches accounts', async ({ page }) => {
+  await boot(page);
+  // Seed a second account, then open settings
+  await page.evaluate(() => {
+    const accounts = JSON.parse(localStorage.getItem('fh_accounts') ?? '{}');
+    accounts['avery@test.local'] = { sub: 'xyz', name: 'Avery', email: 'avery@test.local', accessToken: 'AT-2', refreshToken: 'RT-2', expiresAt: Date.now() + 3600000 };
+    localStorage.setItem('fh_accounts', JSON.stringify(accounts));
+  });
+  await page.click('#btn-settings');
+  await expect(page.locator('#auth-area .member-row', { hasText: 'avery@test.local' })).toBeVisible();
+  await page.click('#auth-area .btn-xs'); // Switch
+  const active = await page.evaluate(() => localStorage.getItem('fh_activeAccount'));
+  expect(active).toBe('avery@test.local');
+});
+
 test('POL-06 creator closes a poll with the leading option as winner', async ({ page }) => {
   await boot(page);
   await page.evaluate(async () => {
