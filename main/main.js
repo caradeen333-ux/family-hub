@@ -50,6 +50,9 @@ function createWindow() {
   });
 }
 
+// IPC: app version (single version source is package.json)
+ipcMain.handle('app-version', () => app.getVersion());
+
 // IPC: toggle always-on-top
 ipcMain.on('set-always-on-top', (_event, onTop) => {
   if (mainWindow) mainWindow.setAlwaysOnTop(onTop);

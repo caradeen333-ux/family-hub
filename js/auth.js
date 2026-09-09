@@ -91,11 +91,7 @@ async function handleAuthRedirect() {
       grant_type: 'authorization_code',
       redirect_uri: redirectUri,
     });
-    // Client secret: Electron preload, or CONFIG fallback for mobile PWA
-    const secret = window.__electron?.clientSecret || CONFIG.clientSecret;
-    if (secret) {
-      body.set('client_secret', secret);
-    }
+    // No client secret — public PKCE client (Phase 2 rebuild)
 
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -141,11 +137,7 @@ async function refreshToken() {
       grant_type: 'refresh_token',
     });
 
-    // Client secret: Electron preload, or CONFIG fallback for mobile PWA
-    const secret = window.__electron?.clientSecret || CONFIG.clientSecret;
-    if (secret) {
-      body.set('client_secret', secret);
-    }
+    // No client secret — public PKCE client (Phase 2 rebuild)
 
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',

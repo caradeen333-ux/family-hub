@@ -1,11 +1,12 @@
 {
   "name": "family-hub",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "description": "Shared family calendar & notes app",
   "main": "main/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder build --win --x64"
+    "build": "electron-builder build --win --x64",
+    "build:site": "node scripts/build-site.js"
   },
   "build": {
     "appId": "com.familyhub.app",
