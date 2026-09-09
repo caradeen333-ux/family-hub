@@ -124,8 +124,19 @@ export class SyncEngine {
   }
 
   // ---- flush local writes to Drive ----
+  // Single-flight: boot sync, timers, online events, and user actions can all
+  // trigger flushes — concurrent RMW appends to the same Drive file waste
+  // requests and can clobber each other's reads. One shared promise instead.
 
   async flush() {
+    if (this.flushing) return this.flushing;
+    this.flushing = this._flush().finally(() => {
+      this.flushing = null;
+    });
+    return this.flushing;
+  }
+
+  async _flush() {
     if (!this.dirState) return { acknowledged: [], unacknowledged: [] };
     const unconfirmed = await localDb.getUnconfirmed();
     if (!unconfirmed.length) return { acknowledged: [], unacknowledged: [] };

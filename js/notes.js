@@ -12,7 +12,7 @@ export function generateId() {
 // Notes live in engine.view.notes: Map<noteId, payload>
 // payload: {noteId, text, importance, category, date, time, done}
 
-export async function addNote(engine, { text, importance = 'normal', category = 'General', date = '', time = '', done = false }) {
+export async function addNote(engine, { text, importance = 'normal', category = 'General', date = '', time = '', done = false, pinned = false }) {
   return engine.mutate(EVENT_TYPES.NOTE_UPSERT, {
     noteId: generateId(),
     text,
@@ -21,6 +21,7 @@ export async function addNote(engine, { text, importance = 'normal', category = 
     date,
     time,
     done,
+    pinned,
   });
 }
 

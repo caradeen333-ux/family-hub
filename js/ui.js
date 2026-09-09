@@ -5,6 +5,7 @@ import { sortedNotes } from './notes.js';
 import { sortedChores } from './chores.js';
 import { isPollOpen, leadingOptions, dinnerPollForToday, todayKey } from './votes.js';
 import { formatTime } from './calendar.js';
+import { renderMarkdown, wrapSelection, toggleLinePrefix } from './format.js';
 import { clock } from './testing/clock.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -135,12 +136,22 @@ export function wireModalClosers() {
   });
   document.querySelectorAll('.modal-overlay').forEach((overlay) => {
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) overlay.classList.add('hidden');
+      if (e.target === overlay) {
+        // Route through the overlay's close button so cancel semantics
+        // (e.g. confirmDialog's promise) always run
+        const closer = overlay.querySelector('.modal-close, [data-close]');
+        if (closer) closer.click();
+        else overlay.classList.add('hidden');
+      }
     });
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      document.querySelectorAll('.modal-overlay:not(.hidden)').forEach((m) => m.classList.add('hidden'));
+      // Same: click the close button, don't just hide — confirmDialog must
+      // resolve its promise or every later dialog stacks listeners
+      const open = document.querySelector('.modal-overlay:not(.hidden)');
+      const closer = open?.querySelector('.modal-close, [data-close]');
+      if (closer) closer.click();
     }
   });
 }
@@ -244,11 +255,37 @@ function eventCard(ev) {
 export function renderNotes(notesMap, filter = {}) {
   const container = $('#notes-list');
   let notes = sortedNotes(notesMap);
+
+  if (filter.search) {
+    const q = filter.search.toLowerCase();
+    notes = notes.filter((n) => (n.text ?? '').toLowerCase().includes(q) || (n.category ?? '').toLowerCase().includes(q));
+  }
   if (filter.category && filter.category !== 'All') notes = notes.filter((n) => n.category === filter.category);
   if (filter.importance && filter.importance !== 'All') notes = notes.filter((n) => (n.importance ?? 'normal') === filter.importance);
+  if (filter.showDone === false) notes = notes.filter((n) => !n.done);
+  if (filter.sort) {
+    notes = [...notes].sort((a, b) => {
+      switch (filter.sort) {
+        case 'oldest': return (a.ts ?? 0) - (b.ts ?? 0);
+        case 'importance': {
+          const rank = { high: 0, normal: 1, low: 2 };
+          return (rank[a.importance ?? 'normal'] ?? 1) - (rank[b.importance ?? 'normal'] ?? 1);
+        }
+        case 'category': return (a.category ?? '').localeCompare(b.category ?? '');
+        default: return (b.ts ?? 0) - (a.ts ?? 0); // newest
+      }
+    });
+  } else {
+    // Default order: pinned first, then done sinks
+    notes = [...notes].sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+      return 0;
+    });
+  }
 
+  const filtering = Boolean(filter.search || (filter.category && filter.category !== 'All') || (filter.importance && filter.importance !== 'All'));
   if (!notes.length) {
-    container.replaceChildren(emptyState('📝', filter.category !== 'All' ? 'No notes here' : 'No notes yet', filter.category !== 'All' ? 'Try another filter.' : 'Jot something down — everyone in the family sees it.'));
+    container.replaceChildren(emptyState('📝', filtering ? 'No notes match' : 'No notes yet', filtering ? 'Try a different search or filter.' : 'Jot something down — everyone in the family sees it.'));
     return;
   }
   const frag = document.createDocumentFragment();
@@ -256,7 +293,7 @@ export function renderNotes(notesMap, filter = {}) {
   container.replaceChildren(frag);
 }
 
-export function renderNoteFilters(notesMap) {
+export function renderNoteFilters(notesMap, { category = 'All', importance = 'All' } = {}) {
   const categories = new Set(['All']);
   const importances = new Set(['All']);
   for (const n of notesMap.values()) {
@@ -271,12 +308,10 @@ export function renderNoteFilters(notesMap) {
     const chip = el('button', 'chip', label);
     chip.dataset.key = key;
     chip.dataset.value = value;
-    if (value === 'All') chip.classList.add('active');
+    const isActive = (key === 'category' ? category : importance) === value;
+    if (isActive) chip.classList.add('active');
     chip.addEventListener('click', () => {
-      const isCategory = key === 'category';
-      container.querySelectorAll(`.chip[data-key="${key}"]`).forEach((c) => c.classList.toggle('active', c === chip));
-      const active = (sel) => container.querySelector(`.chip[data-key="${sel}"].active`)?.dataset.value ?? 'All';
-      renderNotes(notesMap, { category: active('category'), importance: active('importance') });
+      document.dispatchEvent(new CustomEvent('fh:notes-filter', { detail: { key, value } }));
     });
     return chip;
   }));
@@ -284,6 +319,7 @@ export function renderNoteFilters(notesMap) {
 
 function noteCard(note) {
   const card = el('article', `card card-interactive note-card ${note.done ? 'done' : ''}`);
+  if (note.pinned) card.classList.add('pinned');
   const body = el('div', 'note-body');
 
   const check = el('button', 'note-check');
@@ -294,21 +330,32 @@ function noteCard(note) {
     document.dispatchEvent(new CustomEvent('fh:note-toggle', { detail: note }));
   });
 
-  const main = el('div', '');
+  const main = el('div', 'note-main');
   const head = el('div', 'note-head');
   const dot = el('span', `note-importance ${note.importance ?? 'normal'}`);
   head.appendChild(dot);
+  if (note.pinned) head.appendChild(el('span', 'note-pin', '📌'));
   head.appendChild(el('span', 'note-category', note.category ?? 'General'));
+  if (note.date) head.appendChild(noteDateBadge(note));
   head.appendChild(memberChip(note.author ?? '?', currentMembers));
   main.appendChild(head);
-  main.appendChild(el('div', 'note-text', note.text));
+
+  // Formatted markdown-lite text
+  const textEl = el('div', 'note-text');
+  textEl.innerHTML = renderMarkdown(note.text);
+  main.appendChild(textEl);
   body.append(check, main);
   card.appendChild(body);
 
+  // Tap the card body (not the check/actions) → edit
+  body.addEventListener('click', (e) => {
+    if (e.target.closest('button, a')) return;
+    document.dispatchEvent(new CustomEvent('fh:note-edit', { detail: note }));
+  });
+
   const actions = el('div', 'note-actions');
   const del = el('button', 'icon-btn', '🗑');
-  del.style.width = '30px';
-  del.style.height = '30px';
+  del.setAttribute('aria-label', 'Delete note');
   del.addEventListener('click', (e) => {
     e.stopPropagation();
     document.dispatchEvent(new CustomEvent('fh:note-delete', { detail: note }));
@@ -316,6 +363,18 @@ function noteCard(note) {
   actions.appendChild(del);
   card.appendChild(actions);
   return card;
+}
+
+function noteDateBadge(note) {
+  const badge = el('span', 'note-date', '');
+  const today = todayKey();
+  const d = new Date(note.date + 'T00:00:00');
+  const label = note.date === today
+    ? 'Today'
+    : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  badge.textContent = note.time ? `🕐 ${label} ${note.time}` : `📅 ${label}`;
+  if (note.date < today && !note.done) badge.classList.add('overdue');
+  return badge;
 }
 
 // ---------- Votes ----------
@@ -445,6 +504,15 @@ function pollCard({ poll, tallies, votes, closedWinner }, { activeMemberKey, mem
   }
   const author = poll.author ? memberChip(poll.author, members) : el('span', '', '');
   foot.appendChild(author);
+
+  // Creator-only close (UI rule; merge accepts any close for robustness)
+  if (!closed && poll.author === activeMemberKey) {
+    const closeBtn = el('button', 'btn-secondary btn-xs', 'Close poll');
+    closeBtn.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('fh:poll-close', { detail: { poll, tallies } }));
+    });
+    foot.appendChild(closeBtn);
+  }
   card.appendChild(foot);
   return card;
 }
@@ -463,16 +531,36 @@ export function renderChores(choresMap, { activeMemberKey, members }) {
     const row = el('div', `card card-interactive chore-row ${chore.done ? 'done' : ''}`);
     const check = el('button', 'note-check');
     check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>';
+    check.setAttribute('aria-label', chore.done ? 'Mark not done' : 'Mark done');
     check.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:chore-toggle', { detail: chore })));
     const title = el('span', 'chore-title', chore.title);
-    if (chore.dueDate) row.appendChild(el('span', 'chore-due', chore.dueDate));
+    const due = choreDueBadge(chore);
+    row.append(check, title);
+    if (due) row.appendChild(due);
     if (chore.assignee) row.appendChild(memberChip(chore.assignee, members));
     const del = el('button', 'icon-btn', '🗑');
+    del.setAttribute('aria-label', 'Delete chore');
     del.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:chore-delete', { detail: chore })));
-    row.append(check, title, del);
+    row.appendChild(del);
+    // Tap the row → edit
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      document.dispatchEvent(new CustomEvent('fh:chore-edit', { detail: chore }));
+    });
     frag.appendChild(row);
   }
   container.replaceChildren(frag);
+}
+
+function choreDueBadge(chore) {
+  if (!chore.dueDate) return null;
+  const today = todayKey();
+  const badge = el('span', 'chore-due', chore.dueDate);
+  if (chore.dueDate === today && !chore.done) badge.textContent = 'Due today';
+  else if (chore.dueDate < today && !chore.done) badge.textContent = `Overdue · ${chore.dueDate}`;
+  else if (!chore.done) badge.textContent = `Due ${chore.dueDate}`;
+  if (!chore.done && chore.dueDate <= today) badge.classList.add('overdue');
+  return badge;
 }
 
 // ---------- Settings ----------
@@ -516,6 +604,89 @@ function signOutButton() {
   btn.style.marginTop = '8px';
   btn.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:signout')));
   return btn;
+}
+
+// ---------- Note / chore modals ----------
+
+// Open the note modal for add (note=null) or edit. Returns the form element.
+export function openNoteModal(note = null) {
+  const form = $('#form-note');
+  form.reset();
+  $('#modal-note-title').textContent = note ? 'Edit Note' : 'New Note';
+  form.noteId.value = note?.noteId ?? '';
+  form.note.value = note?.text ?? '';
+  form.importance.value = note?.importance ?? 'normal';
+  form.category.value = note?.category ?? 'General';
+  form.date.value = note?.date ?? '';
+  form.time.value = note?.time ?? '';
+  form.pinned.checked = Boolean(note?.pinned);
+  form.done.checked = Boolean(note?.done);
+  openModal('modal-note');
+  form.note.focus();
+  return form;
+}
+
+export function openChoreModal(chore = null) {
+  const form = $('#form-chore');
+  form.reset();
+  $('#modal-chore-title').textContent = chore ? 'Edit Chore' : 'New Chore';
+  form.choreId.value = chore?.choreId ?? '';
+  form.title.value = chore?.title ?? '';
+  form.dueDate.value = chore?.dueDate ?? '';
+  const select = form.assignee;
+  select.replaceChildren(Object.assign(el('option', '', '— anyone —'), { value: '' }));
+  for (const [key, member] of currentMembers) {
+    const opt = el('option', '', member.name ?? key);
+    opt.value = key;
+    select.appendChild(opt);
+  }
+  select.value = chore?.assignee ?? '';
+  form.done.checked = Boolean(chore?.done);
+  openModal('modal-chore');
+  form.title.focus();
+  return form;
+}
+
+// Wire the formatting toolbar buttons to the note textarea
+export function wireFormatToolbar() {
+  document.querySelectorAll('#form-note .fmt-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ta = $('#note-textarea');
+      switch (btn.dataset.fmt) {
+        case 'bold': wrapSelection(ta, '**'); break;
+        case 'italic': wrapSelection(ta, '*'); break;
+        case 'list': toggleLinePrefix(ta, '- '); break;
+        case 'numlist': toggleLinePrefix(ta, '1. '); break;
+        case 'link': {
+          const url = prompt('Paste a link (https://…)');
+          if (url && /^https?:\/\//i.test(url)) {
+            wrapSelection(ta, '[', `](${url})`);
+          } else if (url) {
+            toast('Link must start with https://', 'error');
+          }
+          break;
+        }
+      }
+      ta.dispatchEvent(new Event('input'));
+    });
+  });
+}
+
+// ---------- Busy states ----------
+
+// Disable a button while a promise runs; shows a spinner via the .busy class
+export async function busy(btn, promise, { label } = {}) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.classList.add('busy');
+  if (label) btn.textContent = label;
+  try {
+    return await promise;
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('busy');
+    if (label) btn.textContent = original;
+  }
 }
 
 // ---------- Auth screens ----------

@@ -32,6 +32,13 @@ const $ = (sel) => document.querySelector(sel);
 const engine = new SyncEngine({ adapter: makeDriveAdapter() });
 let range = 1;
 let calendarEvents = [];
+let notesFilter = { search: '', sort: 'newest', showDone: true, category: 'All', importance: 'All' };
+
+function renderNotesPanel() {
+  if (!engine.view) return;
+  ui.renderNotes(engine.view.notes, notesFilter);
+  ui.renderNoteFilters(engine.view.notes, notesFilter);
+}
 
 // ---------- boot ----------
 
@@ -199,8 +206,7 @@ function renderAll() {
   ui.setMembers(engine.view.members);
   ui.renderDinnerCard(engine.view, { activeMemberKey: engine.activeMemberKey() });
   ui.renderEvents(calendarEvents, { containerId: 'myday-events', range });
-  ui.renderNotes(engine.view.notes, {});
-  ui.renderNoteFilters(engine.view.notes);
+  renderNotesPanel();
   ui.renderVotes(engine.view, { activeMemberKey: engine.activeMemberKey(), members: engine.view.members });
   ui.renderChores(engine.view.chores, { activeMemberKey: engine.activeMemberKey(), members: engine.view.members });
   ui.renderSettings({ members: engine.view.members, dirState: engine.dirState, account: getActiveAccount() });
@@ -231,15 +237,19 @@ function wireStaticControls() {
   $('#btn-theme').addEventListener('click', ui.toggleTheme);
   $('#setting-darkmode')?.addEventListener('change', ui.toggleTheme);
   $('#btn-refresh').addEventListener('click', async () => {
-    ui.setSyncStatus('working', 'Syncing…');
-    try {
-      await engine.run();
-      await loadCalendar();
-      ui.setSyncStatus('synced', 'Up to date');
-      ui.toast('Refreshed', 'success');
-    } catch {
-      ui.setSyncStatus('error', 'Sync failed');
-    }
+    const btn = $('#btn-refresh');
+    await ui.busy(btn, (async () => {
+      ui.setSyncStatus('working', 'Syncing…');
+      try {
+        await engine.run();
+        await loadCalendar();
+        ui.setSyncStatus('synced', 'Up to date');
+        ui.toast('Refreshed', 'success');
+      } catch {
+        ui.setSyncStatus('error', 'Sync failed');
+        ui.toast('Sync failed — check your connection', 'error');
+      }
+    })());
   });
   $('#btn-settings').addEventListener('click', () => {
     renderAll();
@@ -249,8 +259,9 @@ function wireStaticControls() {
     renderAll();
     ui.openModal('modal-settings');
   });
-  $('#btn-auth-signin').addEventListener('click', startSignIn);
+  $('#btn-auth-signin').addEventListener('click', () => ui.busy($('#btn-auth-signin'), startSignIn(), { label: 'Opening Google…' }));
   $('#form-provision').addEventListener('submit', handleProvisionSubmit);
+  ui.wireFormatToolbar();
   $('#btn-enter-hub').addEventListener('click', () => {
     ui.showApp();
     renderAll();
@@ -319,8 +330,21 @@ async function startSignIn() {
 // ---------- app events (mutations) ----------
 
 function wireAppEvents() {
-  document.querySelectorAll('.tab').forEach((t) => {
+  // Tab bar: click + arrow-key navigation (roving tabindex)
+  const tabs = [...document.querySelectorAll('.tab')];
+  tabs.forEach((t) => {
     t.addEventListener('click', () => ui.switchTab(t.dataset.tab));
+    t.addEventListener('keydown', (e) => {
+      const idx = tabs.indexOf(t);
+      let next = null;
+      if (e.key === 'ArrowRight') next = tabs[(idx + 1) % tabs.length];
+      if (e.key === 'ArrowLeft') next = tabs[(idx - 1 + tabs.length) % tabs.length];
+      if (next) {
+        e.preventDefault();
+        next.focus();
+        ui.switchTab(next.dataset.tab);
+      }
+    });
   });
   document.querySelectorAll('.range-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -344,13 +368,33 @@ function wireAppEvents() {
     await notesMod.addNote(engine, { text });
     ui.toast('Note added', 'success');
   });
-  $('#btn-add-note').addEventListener('click', async () => {
-    const input = $('#quick-note-input');
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = '';
-    await notesMod.addNote(engine, { text });
-    ui.toast('Note added', 'success');
+  // Detailed add/edit modal (with formatting toolbar)
+  $('#btn-add-note').addEventListener('click', () => ui.openNoteModal(null));
+  document.addEventListener('fh:note-edit', (e) => ui.openNoteModal(e.detail));
+  $('#form-note').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const data = {
+      text: f.note.value.trim(),
+      importance: f.importance.value,
+      category: f.category.value,
+      date: f.date.value || '',
+      time: f.time.value || '',
+      pinned: f.pinned.checked,
+      done: f.done.checked,
+    };
+    if (!data.text) return;
+    const btn = f.querySelector('button[type="submit"]');
+    await ui.busy(btn, (async () => {
+      if (f.noteId.value) {
+        await notesMod.updateNote(engine, { ...data, noteId: f.noteId.value });
+        ui.toast('Note updated');
+      } else {
+        await notesMod.addNote(engine, data);
+        ui.toast('Note added', 'success');
+      }
+    })(), { label: 'Saving…' });
+    ui.closeModal('modal-note');
   });
   document.addEventListener('fh:note-toggle', async (e) => {
     await notesMod.updateNote(engine, { ...e.detail, done: !e.detail.done });
@@ -360,6 +404,23 @@ function wireAppEvents() {
       await notesMod.deleteNote(engine, e.detail.noteId);
       ui.toast('Note deleted');
     }
+  });
+  // Search / sort / show-done
+  $('#notes-search').addEventListener('input', (e) => {
+    notesFilter.search = e.target.value.trim();
+    renderNotesPanel();
+  });
+  $('#sort-notes').addEventListener('change', (e) => {
+    notesFilter.sort = e.target.value;
+    renderNotesPanel();
+  });
+  $('#notes-show-done').addEventListener('change', (e) => {
+    notesFilter.showDone = e.target.checked;
+    renderNotesPanel();
+  });
+  document.addEventListener('fh:notes-filter', (e) => {
+    notesFilter[e.detail.key] = e.detail.value;
+    renderNotesPanel();
   });
 
   // Votes
@@ -371,34 +432,63 @@ function wireAppEvents() {
     await votesMod.startDinnerPoll(engine, { author: engine.activeMemberKey() });
     ui.toast("Dinner poll started 🍽️", 'success');
   });
+  // Creator closes: winner = leading option (none on ties / zero votes)
+  document.addEventListener('fh:poll-close', async (e) => {
+    const { poll, tallies } = e.detail;
+    const leaders = votesMod.leadingOptions(poll, tallies);
+    const winner = leaders.length === 1 ? leaders[0].id : null;
+    const label = winner ? `Close "${poll.title}" with ${leaders[0].label} winning?` : `Close "${poll.title}"?`;
+    if (await ui.confirmDialog(label)) {
+      await votesMod.closePoll(engine, poll.pollId, winner);
+      ui.toast(winner ? 'Poll closed — winner set 🏆' : 'Poll closed');
+    }
+  });
   $('#form-poll').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
     const options = f.options.value.split('\n').map((s) => s.trim()).filter(Boolean);
     if (options.length < 2) return ui.toast('Need at least two options', 'error');
-    await votesMod.createPoll(engine, { title: f.title.value.trim(), kind: 'general', options, author: engine.activeMemberKey() });
+    const btn = f.querySelector('button[type="submit"]');
+    await ui.busy(btn, votesMod.createPoll(engine, { title: f.title.value.trim(), kind: 'general', options, author: engine.activeMemberKey() }), { label: 'Starting…' });
     ui.closeModal('modal-poll');
     f.reset();
     ui.toast('Poll started', 'success');
   });
 
   // Chores
-  $('#chore-input').addEventListener('keydown', async (e) => {
-    if (e.key !== 'Enter') return;
-    const input = e.target;
+  const addChoreFromInput = async (input) => {
     const title = input.value.trim();
     if (!title) return;
     input.value = '';
     await choresMod.addChore(engine, { title, assignee: engine.activeMemberKey() });
     ui.toast('Chore added', 'success');
+  };
+  $('#chore-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') addChoreFromInput(e.target);
   });
-  $('#btn-add-chore').addEventListener('click', async () => {
-    const input = $('#chore-input');
-    const title = input.value.trim();
-    if (!title) return;
-    input.value = '';
-    await choresMod.addChore(engine, { title, assignee: engine.activeMemberKey() });
-    ui.toast('Chore added', 'success');
+  $('#btn-add-chore').addEventListener('click', () => addChoreFromInput($('#chore-input')));
+  document.addEventListener('fh:chore-edit', (e) => ui.openChoreModal(e.detail));
+  $('#form-chore').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const data = {
+      title: f.title.value.trim(),
+      assignee: f.assignee.value || '',
+      dueDate: f.dueDate.value || '',
+      done: f.done.checked,
+    };
+    if (!data.title) return;
+    const btn = f.querySelector('button[type="submit"]');
+    await ui.busy(btn, (async () => {
+      if (f.choreId.value) {
+        await choresMod.updateChore(engine, { ...data, choreId: f.choreId.value });
+        ui.toast('Chore updated');
+      } else {
+        await choresMod.addChore(engine, data);
+        ui.toast('Chore added', 'success');
+      }
+    })(), { label: 'Saving…' });
+    ui.closeModal('modal-chore');
   });
   document.addEventListener('fh:chore-toggle', async (e) => {
     await choresMod.toggleChore(engine, e.detail);
@@ -485,9 +575,8 @@ async function submitEventForm(e) {
   const f = e.target;
   const form = new FormData(f);
   const btn = f.querySelector('button[type="submit"]');
-  btn.disabled = true;
   try {
-    await calendar.createEvent({
+    await ui.busy(btn, calendar.createEvent({
       calendarId: form.get('calendarId'),
       title: form.get('title'),
       date: form.get('date'),
@@ -497,14 +586,12 @@ async function submitEventForm(e) {
       location: form.get('location'),
       description: form.get('description'),
       clientKey: 'ev-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-    });
+    }), { label: 'Saving…' });
     ui.closeModal('modal-event');
     ui.toast('Event created', 'success');
     await loadCalendar();
   } catch (err) {
     ui.toast('Could not create event: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
   }
 }
 

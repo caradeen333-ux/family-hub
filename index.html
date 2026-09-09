@@ -93,9 +93,23 @@
 
     <!-- ===== Notes ===== -->
     <section id="panel-notes" class="panel" role="tabpanel">
+      <div class="notes-toolbar">
+        <div class="search-row">
+          <input id="notes-search" type="search" placeholder="Search notes…" aria-label="Search notes">
+          <select id="sort-notes" class="sort-select" aria-label="Sort notes">
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="importance">Importance</option>
+            <option value="category">Category</option>
+          </select>
+        </div>
+        <label class="done-toggle">
+          <input type="checkbox" id="notes-show-done" checked> Show completed
+        </label>
+      </div>
       <div class="quick-add-bar">
         <input id="quick-note-input" type="text" placeholder="Type a note and press Enter…" aria-label="Quick note">
-        <button id="btn-add-note" class="btn-primary btn-sm">Add</button>
+        <button id="btn-add-note" class="btn-primary btn-sm">＋ New note</button>
       </div>
       <div class="filter-chips" id="filter-notes"></div>
       <div id="notes-list" class="notes-list"></div>
@@ -171,14 +185,25 @@
   </div>
 </div>
 
-<!-- Note form -->
+<!-- Note form (add + edit) -->
 <div id="modal-note" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal">
     <div class="modal-header">
-      <h2 id="modal-note-title">Add Note</h2>
+      <h2 id="modal-note-title">New Note</h2>
       <button class="modal-close" data-close="modal-note" aria-label="Close">&times;</button>
     </div>
     <form id="form-note">
+      <input type="hidden" name="noteId">
+      <div class="fmt-toolbar" role="toolbar" aria-label="Text formatting">
+        <button type="button" class="fmt-btn" data-fmt="bold" title="Bold" aria-label="Bold"><b>B</b></button>
+        <button type="button" class="fmt-btn" data-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+        <button type="button" class="fmt-btn" data-fmt="list" title="Bullet list" aria-label="Bullet list">• List</button>
+        <button type="button" class="fmt-btn" data-fmt="numlist" title="Numbered list" aria-label="Numbered list">1. List</button>
+        <button type="button" class="fmt-btn" data-fmt="link" title="Link" aria-label="Link">🔗</button>
+      </div>
+      <label>Note
+        <textarea name="note" id="note-textarea" rows="5" required placeholder="What needs to be done? Supports **bold**, *italic*, \`code\`, - lists, and [links](https://…)"></textarea>
+      </label>
       <div class="form-row">
         <label>Importance
           <select name="importance">
@@ -194,10 +219,40 @@
           </select>
         </label>
       </div>
-      <label>Note <textarea name="note" rows="3" required placeholder="What needs to be done?"></textarea></label>
+      <div class="form-row">
+        <label>Date <input type="date" name="date"></label>
+        <label>Time <input type="time" name="time"></label>
+      </div>
+      <div class="form-row">
+        <label class="toggle-label">📌 Pinned <input type="checkbox" name="pinned"></label>
+        <label class="toggle-label">✅ Done <input type="checkbox" name="done"></label>
+      </div>
       <div class="form-actions">
         <button type="button" class="btn-cancel" data-close="modal-note">Cancel</button>
         <button type="submit" class="btn-primary">Save Note</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Chore form (add + edit) -->
+<div id="modal-chore" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-chore-title">New Chore</h2>
+      <button class="modal-close" data-close="modal-chore" aria-label="Close">&times;</button>
+    </div>
+    <form id="form-chore">
+      <input type="hidden" name="choreId">
+      <label>Chore <input type="text" name="title" required placeholder="What needs doing?"></label>
+      <div class="form-row">
+        <label>Assign to <select name="assignee"><option value="">— anyone —</option></select></label>
+        <label>Due date <input type="date" name="dueDate"></label>
+      </div>
+      <label class="toggle-label">✅ Done <input type="checkbox" name="done"></label>
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" data-close="modal-chore">Cancel</button>
+        <button type="submit" class="btn-primary">Save Chore</button>
       </div>
     </form>
   </div>
