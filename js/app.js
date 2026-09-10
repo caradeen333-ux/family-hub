@@ -443,6 +443,31 @@ function wireStaticControls() {
       ui.toast('Select and copy manually', 'error');
     }
   });
+  // Pre-written invite email: how it works, install note, the link itself.
+  // Opens the owner's own mail app (mailto) — zero servers, zero new scopes.
+  let lastInviteEmail = ''; // tracks the last invited person for the Email button
+
+  const emailInvite = (email) => {
+    const link = buildInviteLink({ folderId: engine.dirState.folderId, dirFileId: engine.dirState.dirFileId });
+    const subject = 'You\'re invited to our Family Hub!';
+    const body = [
+      'Hi!',
+      '',
+      "You've been invited to join our family's Family Hub — our shared calendar, notes, votes, chores and shopping lists.",
+      '',
+      'How it works:',
+      '1. Open this link on your phone or computer:',
+      `   ${link}`,
+      '2. Sign in with YOUR OWN Google account (never a shared one)',
+      '3. Pick your name — done!',
+      '',
+      "Everything lives in our family's own Google Drive folder — we own it, no company sees it. Google will also email you separately about folder access; that's expected.",
+      '',
+      'See you inside! 🏡',
+    ].join('\n');
+    window.location.href = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
   // The full invite flow: grant Drive access to the invitee's email, THEN
   // hand over the link. Order matters — a link without access is a dead end.
   const inviteWithEmail = async (email, { fromProvisionScreen = false } = {}) => {
@@ -458,9 +483,13 @@ function wireStaticControls() {
       return ui.toast('Could not share the folder — check the email and try again', 'error');
     }
     const link = buildInviteLink({ folderId: engine.dirState.folderId, dirFileId: engine.dirState.dirFileId });
+    lastInviteEmail = email;
     if (fromProvisionScreen) $('#invite-link').value = link;
     navigator.clipboard?.writeText(link).catch(() => {});
-    ui.toast(`Folder shared with ${email} — invite link copied`, 'success');
+    ui.toast(`Folder shared with ${email} — link copied`, 'success', {
+      actionLabel: 'Email invite',
+      onAction: () => emailInvite(email),
+    });
   };
   $('#btn-share-email').addEventListener('click', async () => {
     const input = $('#invite-email');
@@ -474,6 +503,10 @@ function wireStaticControls() {
       e.preventDefault();
       $('#btn-share-email').click();
     }
+  });
+  $('#btn-email-invite').addEventListener('click', () => {
+    if (lastInviteEmail) emailInvite(lastInviteEmail);
+    else ui.toast('Invite someone first — enter their email above', 'error');
   });
   document.addEventListener('fh:member-calendar', async (e) => {
     const current = engine.view?.config.get('calendars') ?? {};
