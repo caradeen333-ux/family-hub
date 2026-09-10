@@ -154,7 +154,11 @@ async function handleAuthRedirect() {
       redirectUri: saved.redirect,
       verifier: saved.verifier,
     });
-    const profile = decodeIdToken(tokens.idToken);
+    const profile = await profileFromTokens(tokens);
+    if (!profile.email) {
+      ui.showAuthScreen({ error: 'Sign-in incomplete — Google returned no account email.' });
+      return 'error';
+    }
     updateAccount(profile.email, {
       sub: profile.sub,
       name: profile.name,
@@ -182,6 +186,20 @@ function decodeIdToken(idToken) {
   } catch {
     return {};
   }
+}
+
+// Desktop-type clients often return NO id_token — fall back to the userinfo
+// endpoint. NEVER store an account without an email (the 'undefined'-key bug).
+async function profileFromTokens(tokens) {
+  const fromId = decodeIdToken(tokens.id_token);
+  if (fromId.email) return fromId;
+  const accessToken = tokens.access_token ?? tokens.accessToken;
+  const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!resp.ok) throw new Error(`userinfo failed (${resp.status})`);
+  const data = await resp.json();
+  return { sub: data.sub, email: data.email, name: data.name };
 }
 
 // ---------- provisioning ----------
@@ -412,17 +430,23 @@ async function startSignIn() {
   if (window.__electron?.startOauth) {
     const result = await window.__electron.startOauth();
     if (result?.ok) {
-      const profile = decodeIdToken(result.tokens.id_token);
-      updateAccount(profile.email, {
-        sub: profile.sub,
-        name: profile.name,
-        email: profile.email,
-        accessToken: result.tokens.access_token,
-        expiresAt: clock.now() + (result.tokens.expires_in ?? 3600) * 1000,
-        ...(result.tokens.refresh_token ? { refreshToken: result.tokens.refresh_token } : {}),
-      });
-      setActiveEmail(profile.email); // the new account becomes active
-      await bootAfterSignIn(parseInvite());
+      try {
+        const profile = await profileFromTokens(result.tokens);
+        if (!profile.email) throw new Error('no account email returned by Google');
+        updateAccount(profile.email, {
+          sub: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          accessToken: result.tokens.access_token,
+          expiresAt: clock.now() + (result.tokens.expires_in ?? 3600) * 1000,
+          ...(result.tokens.refresh_token ? { refreshToken: result.tokens.refresh_token } : {}),
+        });
+        setActiveEmail(profile.email); // the new account becomes active
+        await bootAfterSignIn(parseInvite());
+      } catch (err) {
+        console.error('profile resolution failed', err);
+        ui.toast('Sign-in incomplete: ' + err.message, 'error');
+      }
     } else {
       ui.toast(result?.error ?? 'Sign-in failed', 'error');
     }
