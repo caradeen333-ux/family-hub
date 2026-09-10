@@ -353,7 +353,7 @@ async function handlePickerJoin() {
       dirFileId = picked.id;
     }
     if (dirFileId !== invite.dirFileId) {
-      ui.toast('That\'s not the family folder you were invited to — pick the "Family Hub" folder under Shared with me', 'error');
+      ui.toast('That\'s not the family\'s folder — open "Shared with me" in the picker and choose the Family Hub folder listed there (owned by the person who invited you). One you made yourself won\'t work.', 'error');
       return;
     }
 

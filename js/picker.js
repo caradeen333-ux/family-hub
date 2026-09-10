@@ -46,7 +46,12 @@ export async function pickFamilyFolder({ token }) {
   await loadPicker(gapi);
 
   return new Promise((resolve) => {
-    const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+    // Docs (files) view, not the FOLDERS view: the folder view only shows
+    // the user's own Drive, and the family folder lives in "Shared with me"
+    // for a joiner. includeFolders + selectFolderEnabled lets them pick the
+    // folder itself from that shared list — the pick authorizes the folder
+    // AND its contents under drive.file.
+    const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(true);
     const picker = new google.picker.PickerBuilder()
