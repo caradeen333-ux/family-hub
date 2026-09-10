@@ -10,7 +10,7 @@ const site = path.join(root, 'site');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 
 const COPY_PATHS = ['index.html', 'manifest.json', 'sw.js', 'css', 'js', 'icons'];
-const COPY_IF_EXISTS = ['silent.html']; // added in Phase 2 (silent re-auth target)
+const COPY_IF_EXISTS = ['silent.html', 'privacy.html'];
 
 function copy(src, dest) {
   const stat = fs.statSync(src);
