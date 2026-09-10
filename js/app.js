@@ -15,6 +15,7 @@ import {
   startProactiveRefresh,
   onAuthStateChange,
 } from './auth/token.js';
+import * as gis from './auth/gis.js';
 import { getActiveAccount, updateAccount, clearLegacyTokens, setActiveEmail } from './auth/token-store.js';
 import { SyncEngine, makeDriveAdapter } from './sync/sync-engine.js';
 import * as localDb from './storage/local-db.js';
@@ -602,7 +603,41 @@ async function startSignIn() {
     return;
   }
 
-  // Web/PWA: full-page redirect with PKCE + state
+  // Web/PWA: GIS popup first (the secretless path — mobile relies on it).
+  // Falls back to the full-page PKCE redirect if the GIS script can't load
+  // (offline, script-blocked, or the test harness).
+  try {
+    const { code, redirectUri } = await gis.gisSignIn({
+      clientId: CONFIG.WEB_CLIENT_ID,
+      scopes: CONFIG.scopes,
+    });
+    const tokens = await oauth.exchangeGisCode({
+      clientId: CONFIG.WEB_CLIENT_ID,
+      code,
+      redirectUri,
+    });
+    const profile = await profileFromTokens(tokens);
+    if (!profile.email) throw new Error('no account email returned by Google');
+    updateAccount(profile.email, {
+      sub: profile.sub,
+      name: profile.name,
+      email: profile.email,
+      accessToken: tokens.accessToken,
+      expiresAt: tokens.expiresAt,
+      ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {}),
+    });
+    setActiveEmail(profile.email);
+    await bootAfterSignIn(parseInvite());
+    return;
+  } catch (err) {
+    if (!err.gisUnavailable) {
+      console.error('GIS sign-in failed', err);
+      ui.toast(err.gisError === 'user_cancelled' ? 'Sign-in cancelled' : 'Sign-in failed: ' + err.message, 'error');
+      return;
+    }
+    // GIS script unreachable → legacy full-page PKCE redirect
+  }
+
   const url = await oauth.buildAuthorizeUrl({
     clientId: CONFIG.WEB_CLIENT_ID,
     redirectUri: CONFIG.webRedirectUri,

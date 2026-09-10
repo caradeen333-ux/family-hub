@@ -33,6 +33,9 @@ test('AUTH-01 fresh sign-in completes the PKCE round-trip', async ({ page }) => 
   await expect(page.locator('#screen-auth')).toBeVisible();
   await page.click('#btn-auth-signin');
 
+  // GIS is attempted first (async) — wait for the legacy redirect to fire
+  await expect(page).toHaveURL(/code=/, { timeout: 10_000 });
+
   // The authorize URL must carry PKCE + state
   expect(authorizeSeen.length).toBe(1);
   const authUrl = authorizeSeen[0];
@@ -164,6 +167,52 @@ test('AUTH-07 state mismatch makes no mutations', async ({ page }) => {
   await expect(page.locator('#auth-error')).toBeVisible({ timeout: 10_000 });
   const accounts = await page.evaluate(() => localStorage.getItem('fh_accounts'));
   expect(accounts === null || accounts === '{}').toBe(true);
+});
+
+// AUTH-09: GIS popup flow (the mobile/web path) — stubbed google.accounts
+test('AUTH-09 GIS code flow completes sign-in without any client secret', async ({ page }) => {
+  await page.context().addInitScript(() => {
+    // Stub Google Identity Services: capture config, hand back a code
+    window.google = {
+      accounts: {
+        oauth2: {
+          initCodeClient: (opts) => {
+            window.__gisOpts = opts;
+            return {
+              requestCode: () => setTimeout(() => opts.callback({ code: 'gis-code-123' }), 20),
+            };
+          },
+        },
+      },
+    };
+  });
+
+  let exchangeBody = null;
+  await mockTokenEndpoint(page, async (route, body) => {
+    exchangeBody = Object.fromEntries(body);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        access_token: 'AT-GIS',
+        refresh_token: 'RT-GIS',
+        expires_in: 3600,
+        id_token: fakeIdToken({ email: TEST_EMAIL, name: 'Mike' }),
+      }),
+    });
+  });
+
+  await page.goto('/' + T);
+  await page.click('#btn-auth-signin');
+
+  await expect(page.locator('#screen-provision')).toBeVisible({ timeout: 10_000 });
+  // The exchange carried NO secret and used the page origin as redirect
+  expect(exchangeBody.grant_type).toBe('authorization_code');
+  expect(exchangeBody.client_secret).toBeUndefined();
+  expect(exchangeBody.code_verifier).toBeUndefined();
+  expect(exchangeBody.redirect_uri).toBe('http://localhost:4173');
+  const accounts = await page.evaluate(() => JSON.parse(localStorage.getItem('fh_accounts') ?? '{}'));
+  expect(accounts[TEST_EMAIL].refreshToken).toBe('RT-GIS');
 });
 
 // AUTH-08: transient 5xx keeps tokens and does not re-auth

@@ -54,8 +54,14 @@ export async function mockTokenEndpoint(page, handler) {
 
 // Intercept the Google authorize URL: capture it and bounce back to
 // redirectUri with a code + the same state (or an override).
+// Also blocks the GIS client script so the legacy PKCE flow is used
+// deterministically (GIS tests stub google.accounts instead).
 export async function mockAuthorizeRedirect(page, { code = 'test-code', state = null, query = {} } = {}) {
   const seen = [];
+  // Deterministic no-op: loads fine but defines nothing, so the app's
+  // capability check falls back to the legacy PKCE flow
+  await page.route('**/accounts.google.com/gsi/client**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/javascript', body: '/* gsi unavailable in tests */' }));
   await page.route('**/accounts.google.com/o/oauth2/v2/auth**', async (route) => {
     const url = new URL(route.request().url());
     seen.push(url);

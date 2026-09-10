@@ -111,6 +111,24 @@ export async function exchangeCode({ clientId, code, redirectUri, verifier }) {
   return parseTokenResponse(resp);
 }
 
+// Exchange a GIS-issued code (mobile/web popup flow). NO client secret and
+// NO code_verifier — the code's first-party binding authenticates it. The
+// redirect_uri is the page origin that opened the popup.
+export async function exchangeGisCode({ clientId, code, redirectUri }) {
+  const body = new URLSearchParams({
+    code,
+    client_id: clientId,
+    grant_type: 'authorization_code',
+    redirect_uri: redirectUri,
+  });
+  const resp = await fetch(CONFIG.tokenEndpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  return parseTokenResponse(resp);
+}
+
 // Refresh grant. The response may omit refresh_token — callers must MERGE,
 // never replace (Google often returns none).
 // In Electron the grant runs in main via IPC (same desktop client that minted
