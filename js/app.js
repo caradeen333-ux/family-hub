@@ -217,8 +217,14 @@ async function handleProvisionSubmit(e) {
         ui.toast('Welcome to the family! 🎉', 'success');
       }
     } else {
+      const familyName = $('#provision-family')?.value?.trim() ?? '';
+      if (!familyName) {
+        ui.toast('Give your family a name first', 'error');
+        btn.disabled = false;
+        return;
+      }
       const result = await provisionFirstUser(engine.adapter, {
-        name, email: account.email, clock: () => clock.now(),
+        name, email: account.email, familyName, clock: () => clock.now(),
       });
       dirState = { folderId: result.folderId, dirFileId: result.dirFileId, memberKey: result.memberKey, name, email: account.email };
       updateAccount(account.email, { driveFolderId: result.folderId, dirFileId: result.dirFileId });
@@ -260,7 +266,12 @@ function renderAll() {
   ui.renderVotes(engine.view, { activeMemberKey: engine.activeMemberKey(), members: engine.view.members });
   ui.renderChores(engine.view.chores, { activeMemberKey: engine.activeMemberKey(), members: engine.view.members });
   renderShoppingPanel();
-  ui.renderSettings({ members: engine.view.members, dirState: engine.dirState, account: getActiveAccount() });
+  ui.renderSettings({
+    members: engine.view.members,
+    dirState: engine.dirState,
+    account: getActiveAccount(),
+    familyName: engine.view.config.get('familyName') ?? null,
+  });
   ui.renderAccount(getActiveAccount());
 }
 
@@ -359,6 +370,13 @@ function wireStaticControls() {
       e.preventDefault();
       $('#btn-share-email').click();
     }
+  });
+  document.addEventListener('fh:family-rename', async () => {
+    const current = engine.view?.config.get('familyName') ?? '';
+    const name = await ui.promptDialog('Rename your family — this is the name everyone shares.', { placeholder: 'e.g. The Murphys' });
+    if (!name) return;
+    await engine.mutate('config.upsert', { key: 'familyName', value: name });
+    ui.toast(`Family renamed to "${name}"`, 'success');
   });
   $('#btn-invite').addEventListener('click', async () => {
     const email = await ui.promptDialog('Invite a family member — enter their Google email. We\'ll give them access to the family folder and copy you an invite link.', { placeholder: 'their.name@gmail.com', inputType: 'email' });

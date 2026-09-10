@@ -828,11 +828,16 @@ export function openListModal() {
 
 // ---------- Settings ----------
 
-export function renderSettings({ members, dirState, account }) {
-  // Family
+export function renderSettings({ members, dirState, account, familyName }) {
+  // Family — the family's own name first, never a person's name
   const info = $('#family-info');
   if (dirState) {
-    info.replaceChildren(el('p', 'about-text', 'Family data lives in your shared Google Drive folder — everyone signs in with their own account. Export anytime from Drive.'));
+    const title = el('p', 'about-text family-name-line', familyName ? `🏡 ${familyName}` : '🏡 Family Hub');
+    info.replaceChildren(title, el('p', 'about-text', 'Your data lives in your shared Google Drive folder — everyone signs in with their own account. Export anytime.'));
+    const rename = el('button', 'btn-secondary btn-xs', 'Rename family');
+    rename.style.marginBottom = '8px';
+    rename.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:family-rename')));
+    info.appendChild(rename);
   } else {
     info.replaceChildren(el('p', 'about-text', 'No family set up yet.'));
   }
@@ -995,13 +1000,18 @@ export function showProvisionScreen({ mode, invite }) {
   $('#provision-invite').classList.add('hidden');
   $('#form-provision').classList.remove('hidden');
   if (mode === 'join') {
+    // The FAMILY already has a name — joiners only set their own
     $('#provision-title').textContent = 'Join your family';
     $('#provision-body').textContent = 'You were invited to a Family Hub. Sign in with your own Google account and set your name.';
     $('#btn-provision').textContent = 'Join family';
+    $('#provision-family-label').classList.add('hidden');
+    $('#provision-family').required = false; // hidden required field blocks submit
   } else {
     $('#provision-title').textContent = 'Set up your family';
-    $('#provision-body').textContent = 'First, one person creates the hub. Then everyone else joins with their own account — no shared passwords, ever.';
+    $('#provision-body').textContent = 'Name your family (not just you — everyone shares this), then set your own name. Everyone else joins with their own account afterwards.';
     $('#btn-provision').textContent = 'Create our family hub';
+    $('#provision-family-label').classList.remove('hidden');
+    $('#provision-family').required = true;
   }
 }
 

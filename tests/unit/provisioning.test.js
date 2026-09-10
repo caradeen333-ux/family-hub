@@ -69,6 +69,15 @@ test('provisionFirstUser sequences provision → join → founding events', asyn
   assert.equal(events[0].payload.key, 'mike');
 });
 
+test('provisionFirstUser stores the family name as its own config event', async () => {
+  const adapter = fakeAdapter();
+  await provisionFirstUser(adapter, { name: 'Mike', email: 'mike@x.com', familyName: 'The Murphys', clock: () => NOW });
+  const events = adapter.calls[2][1].events;
+  const familyEvent = events.find((e) => e.type === 'config.upsert' && e.payload.key === 'familyName');
+  assert.ok(familyEvent, 'familyName config event exists');
+  assert.equal(familyEvent.payload.value, 'The Murphys');
+});
+
 test('joinFamily sequences join → member.joined', async () => {
   const adapter = fakeAdapter();
   const result = await joinFamily(adapter, {

@@ -19,10 +19,11 @@ const os = require('os');
 const crypto = require('crypto');
 
 // FH_TEST_PROFILE=1 → isolated userData in the temp dir (Playwright tests).
+// FH_PROFILE_DIR=<abs path> → explicit override (diagnostic sessions).
 // The production app on this machine holds its own storage lock; tests must
 // never fight it — and must never touch real family data.
-if (process.env.FH_TEST_PROFILE === '1') {
-  app.setPath('userData', path.join(os.tmpdir(), 'family-hub-test-profile'));
+if (process.env.FH_TEST_PROFILE === '1' || process.env.FH_PROFILE_DIR) {
+  app.setPath('userData', process.env.FH_PROFILE_DIR ?? path.join(os.tmpdir(), 'family-hub-test-profile'));
 }
 
 const SITE_DIR = path.join(__dirname, '..', 'site');
@@ -97,6 +98,8 @@ async function startLoopbackOauth() {
         res.writeHead(404).end();
         return;
       }
+      // Capture BEFORE close() — server.address() is null once closed
+      const port = server.address()?.port;
       server.close();
       pendingOauth = null;
 
@@ -105,10 +108,11 @@ async function startLoopbackOauth() {
         const error = url.searchParams.get('error');
         if (error) throw new Error(error);
         const code = url.searchParams.get('code');
+        if (!port) throw new Error('loopback server lost its port');
 
         // The redirect_uri MUST match the authorize request exactly (port
         // included) — a bare 'http://localhost' here is an invalid_grant.
-        const callbackUrl = `http://localhost:${server.address().port}/callback`;
+        const callbackUrl = `http://localhost:${port}/callback`;
         const body = new URLSearchParams({
           code,
           client_id: CLIENT_ID,

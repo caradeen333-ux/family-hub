@@ -14,10 +14,12 @@ test('ONB-01 founder provisions, shares by email, gets an invite link', async ({
   await page.route('**/www.googleapis.com/drive/v3/**', drive.routeAll);
 
   await page.goto('/' + T);
-  // Provision screen, name pre-filled from the Google profile
+  // Provision screen: family name first, personal name pre-filled from Google
   await expect(page.locator('#screen-provision')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#provision-family')).toBeVisible();
   await expect(page.locator('#provision-name')).toHaveValue('Mike');
 
+  await page.fill('#provision-family', 'The Murphys');
   await page.click('#btn-provision');
   await expect(page.locator('#provision-invite')).toBeVisible({ timeout: 10_000 });
 
@@ -38,6 +40,9 @@ test('ONB-01 founder provisions, shares by email, gets an invite link', async ({
 
   await page.click('#btn-enter-hub');
   await expect(page.locator('#app')).toBeVisible();
+  // The family name lives in config — never conflated with the founder's name
+  const familyName = await page.evaluate(async () => (await window.__fhTest.engine.remerge()).config.get('familyName'));
+  expect(familyName).toBe('The Murphys');
 });
 
 test('ONB-02 join without folder access shows the friendly message', async ({ page }) => {
