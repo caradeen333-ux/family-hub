@@ -358,7 +358,7 @@ function wireStaticControls() {
   // Window size toggle (Electron only — hidden on web/PWA)
   const SIZES = [
     { width: 400, height: 660 }, // compact widget ("pin size")
-    { width: 560, height: 860 }, // expanded
+    { width: 613, height: 804 }, // the owner-approved default ratio
   ];
   if (window.__electron?.setWindowSize) {
     $('#btn-winsize').addEventListener('click', () => {

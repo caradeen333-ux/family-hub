@@ -71,25 +71,50 @@ export const AISLES = [
   { id: 'meat', label: 'Meat & Fish', emoji: '🥩' },
   { id: 'frozen', label: 'Frozen', emoji: '🧊' },
   { id: 'pantry', label: 'Pantry', emoji: '🥫' },
+  { id: 'pharmacy', label: 'Pharmacy', emoji: '💊' },
   { id: 'household', label: 'Household', emoji: '🧻' },
   { id: 'other', label: 'Everything else', emoji: '🛒' },
 ];
 
 const AISLE_KEYWORDS = {
-  produce: ['apple', 'banana', 'lettuce', 'tomato', 'onion', 'potato', 'carrot', 'broccoli', 'spinach', 'cucumber', 'pepper', 'avocado', 'berry', 'berries', 'strawberry', 'grape', 'orange', 'lemon', 'lime', 'melon', 'fruit', 'vegetable', 'salad', 'celery', 'garlic', 'corn', 'mushroom', 'zucchini', 'pear', 'peach', 'pineapple', 'watermelon', 'mango', 'kiwi', 'plum', 'cherries', 'ginger', 'herb', 'cilantro', 'basil', 'parsley', 'scallion', 'shallot'],
-  bakery: ['bread', 'bagel', 'bun', 'roll', 'tortilla', 'muffin', 'croissant', 'cake', 'donut', 'baguette', 'pita', 'naan'],
-  dairy: ['milk', 'cheese', 'yogurt', 'butter', 'cream', 'egg', 'sour cream', 'creamer', 'kefir', 'cottage cheese', 'margarine', 'half and half'],
-  meat: ['chicken', 'beef', 'pork', 'turkey', 'bacon', 'sausage', 'ham', 'steak', 'ground beef', 'fish', 'salmon', 'shrimp', 'deli', 'meatball', 'meat', 'tuna', 'crab', 'lobster', 'jerky', 'pepperoni', 'hot dog', 'lunch meat'],
-  frozen: ['frozen', 'ice cream', 'popsicle', 'waffle', 'pizza', 'tater', 'fries', 'dumpling', 'burrito', 'nugget', 'frozen veg'],
-  pantry: ['rice', 'pasta', 'cereal', 'soup', 'can', 'canned', 'sauce', 'oil', 'flour', 'sugar', 'salt', 'spice', 'coffee', 'tea', 'snack', 'chip', 'cracker', 'cookie', 'nut', 'peanut butter', 'jelly', 'syrup', 'oats', 'oatmeal', 'beans', 'quinoa', 'honey', 'vinegar', 'ketchup', 'mustard', 'mayo', 'noodle', 'granola', 'popcorn', 'pretzel', 'salsa', 'stock', 'broth', 'breadcrumbs', 'baking soda', 'baking powder', 'cocoa', 'chocolate', 'candy', 'gum', 'juice', 'soda', 'water', 'sparkling', 'coconut', 'condiment', 'seasoning', 'marinade', 'dressing', 'pickle', 'olive'],
-  household: ['paper', 'towel', 'tissue', 'soap', 'shampoo', 'conditioner', 'detergent', 'bleach', 'trash', 'bag', 'sponge', 'foil', 'wrap', 'battery', 'light bulb', 'cleaner', 'wipes', 'toilet paper', 'dish soap', 'laundry', 'fabric softener', 'deodorant', 'toothpaste', 'toothbrush', 'razor', 'shave', 'lotion', 'sunscreen', 'diaper', 'wipes', 'pet food', 'dog food', 'cat food', 'cat litter', 'ziploc', 'freezer bag', 'air freshener', 'candle'],
+  produce: [
+    'apple', 'banana', 'lettuce', 'tomato', 'onion', 'potato', 'carrot', 'broccoli', 'spinach', 'cucumber', 'pepper', 'avocado', 'berry', 'berries', 'strawberry', 'grape', 'orange', 'lemon', 'lime', 'melon', 'fruit', 'vegetable', 'salad', 'celery', 'garlic', 'corn', 'mushroom', 'zucchini', 'pear', 'peach', 'pineapple', 'watermelon', 'mango', 'kiwi', 'plum', 'cherries', 'ginger', 'herb', 'cilantro', 'basil', 'parsley', 'scallion', 'shallot',
+    'cauliflower', 'cabbage', 'kale', 'arugula', 'asparagus', 'artichoke', 'brussels', 'bok choy', 'leek', 'radish', 'beet', 'turnip', 'squash', 'pumpkin', 'eggplant', 'okra', 'edamame', 'sprouts', 'watercress', 'fennel', 'chard', 'collard', 'dill', 'mint', 'rosemary', 'thyme', 'sage', 'chives', 'oregano', 'peas', 'green beans', 'snap peas', 'pomegranate', 'grapefruit', 'tangerine', 'clementine', 'cantaloupe', 'honeydew', 'papaya', 'guava', 'dragon fruit', 'blueberr', 'raspberr', 'blackberr', 'cranberr',
+  ],
+  bakery: [
+    'bread', 'bagel', 'bun', 'roll', 'tortilla', 'muffin', 'croissant', 'cake', 'donut', 'baguette', 'pita', 'naan',
+    'english muffin', 'biscuit', 'scone', 'danish', 'pastry', 'brownie', 'pie', 'cinnamon roll', 'hamburger bun', 'hot dog bun', 'sub roll', 'hoagie', 'ciabatta', 'focaccia', 'sourdough', 'rye bread', 'white bread', 'wheat bread', 'garlic bread', 'crouton', 'breadstick', 'bagel thins', 'pumpernickel',
+  ],
+  dairy: [
+    'milk', 'cheese', 'yogurt', 'butter', 'cream', 'egg', 'sour cream', 'creamer', 'kefir', 'cottage cheese', 'margarine', 'half and half',
+    'ricotta', 'mozzarella', 'parmesan', 'cheddar', 'provolone', 'swiss', 'brie', 'feta', 'goat cheese', 'cream cheese', 'almond milk', 'oat milk', 'soy milk', 'lactose', 'whipped cream', 'pudding', 'custard', 'heavy cream', 'whipping cream', 'egg whites', 'egg substitute',
+  ],
+  meat: [
+    'chicken', 'beef', 'pork', 'turkey', 'bacon', 'sausage', 'ham', 'steak', 'ground beef', 'fish', 'salmon', 'shrimp', 'deli', 'meatball', 'meat', 'tuna', 'crab', 'lobster', 'jerky', 'pepperoni', 'hot dog', 'lunch meat',
+    'burger', 'patties', 'patty', 'ribs', 'brisket', 'roast', 'wings', 'drumstick', 'chop', 'cutlet', 'filet', 'fillet', 'tenderloin', 'ground turkey', 'ground chicken', 'kielbasa', 'salami', 'prosciutto', 'tilapia', 'cod', 'haddock', 'halibut', 'trout', 'scallop', 'mussel', 'oyster', 'clam', 'anchovy', 'sardine', 'seafood', 'crab cake', 'brat', 'pastrami', 'liver', 'lamb', 'veal', 'venison', 'chorizo', 'andouille', 'cold cuts', 'rotisserie',
+  ],
+  frozen: [
+    'frozen', 'ice cream', 'popsicle', 'waffle', 'pizza', 'tater', 'fries', 'dumpling', 'burrito', 'nugget', 'frozen veg',
+    'tv dinner', 'frozen dinner', 'lasagna', 'ice', 'ice cream sandwich', 'frozen fruit', 'smoothie', 'pierogi', 'perogies', 'egg roll', 'spring roll', 'potsticker', 'fish stick', 'chicken strip', 'tots', 'popsicles', 'gelato', 'sherbet', 'ice pop',
+  ],
+  pantry: [
+    'rice', 'pasta', 'cereal', 'soup', 'can', 'canned', 'sauce', 'oil', 'flour', 'sugar', 'salt', 'spice', 'coffee', 'tea', 'snack', 'chip', 'cracker', 'cookie', 'nut', 'peanut butter', 'jelly', 'syrup', 'oats', 'oatmeal', 'beans', 'quinoa', 'honey', 'vinegar', 'ketchup', 'mustard', 'mayo', 'noodle', 'granola', 'popcorn', 'pretzel', 'salsa', 'stock', 'broth', 'breadcrumbs', 'baking soda', 'baking powder', 'cocoa', 'chocolate', 'candy', 'gum', 'juice', 'soda', 'water', 'sparkling', 'coconut', 'condiment', 'seasoning', 'marinade', 'dressing', 'pickle', 'olive',
+    'pancake mix', 'waffle mix', 'cereal bar', 'granola bar', 'protein bar', 'instant', 'mac and cheese', 'hamburger helper', 'taco', 'tortilla chip', 'hummus', 'guacamole', 'ranch', 'bbq sauce', 'hot sauce', 'sriracha', 'teriyaki', 'soy sauce', 'worcestershire', 'fish sauce', 'oyster sauce', 'curry', 'taco seasoning', 'chili', 'refried beans', 'tomato paste', 'diced tomatoes', 'marinara', 'alfredo', 'pesto', 'ramen', 'cup noodle', 'energy drink', 'gatorade', 'powerade', 'sports drink', 'tonic', 'ginger ale', 'root beer', 'lemonade', 'ice tea', 'iced tea', 'apple juice', 'orange juice', 'cranberry juice', 'marshmallow', 'sprinkle', 'frosting', 'cake mix', 'brownie mix', 'cookie dough', 'pie crust', 'jello', 'gelatin', 'pudding mix', 'evaporated milk', 'condensed milk', 'coconut milk', 'bouillon', 'cornstarch', 'corn starch', 'yeast', 'molasses', 'brown sugar', 'powdered sugar', 'baking chips', 'chocolate chips', 'raisin', 'dried fruit', 'trail mix', 'almond', 'cashew', 'walnut', 'pecan', 'peanut', 'sunflower seed', 'pumpkin seed', 'chia', 'flax', 'instant potato', 'stuffing', 'crouton', 'canned fruit', 'applesauce', 'preserves', 'marmalade', 'nutella', 'peanut butter cup', 'licorice', 'taffy', 'mints', 'breath mint',
+  ],
+  pharmacy: [
+    'ibuprofen', 'tylenol', 'advil', 'aspirin', 'vitamin', 'supplement', 'allergy', 'cold medicine', 'cough', 'band-aid', 'bandage', 'first aid', 'thermometer', 'saline', 'eyedrop', 'eye drop', 'contact solution', 'contact lens', 'antacid', 'tums', 'pepto', 'imodium', 'laxative', 'pain reliever', 'prescription', 'melatonin', 'probiotic', 'protein powder', 'fiber', 'emergen-c', 'nyquil', 'dayquil', 'robitussin', 'mucinex', 'neosporin', 'hydrocortisone', 'vapor rub', 'humidifier', 'inhaler', 'blood pressure', 'glucose', 'hearing aid', 'reading glasses', 'medicine', 'medication',
+  ],
+  household: [
+    'paper', 'towel', 'tissue', 'soap', 'shampoo', 'conditioner', 'detergent', 'bleach', 'trash', 'bag', 'sponge', 'foil', 'wrap', 'battery', 'light bulb', 'cleaner', 'wipes', 'toilet paper', 'dish soap', 'laundry', 'fabric softener', 'deodorant', 'toothpaste', 'toothbrush', 'razor', 'shave', 'lotion', 'sunscreen', 'diaper', 'wipes', 'pet food', 'dog food', 'cat food', 'cat litter', 'ziploc', 'freezer bag', 'air freshener', 'candle',
+    'plate', 'cup', 'napkin', 'utensil', 'silverware', 'parchment', 'wax paper', 'coffee filter', 'dish detergent', 'hand soap', 'body wash', 'bar soap', 'floss', 'mouthwash', 'q-tip', 'cotton ball', 'cotton swab', 'garbage', 'recycling', 'lightbulb', 'laundry pod', 'dryer sheet', 'stain remover', 'glass cleaner', 'all purpose cleaner', 'disinfectant', 'bug spray', 'insect', 'lighter', 'matches', 'charcoal', 'propane', 'storage bin', 'batteries', 'dust pan', 'mop', 'broom', 'vacuum bag', 'furniture polish', 'wood cleaner', 'aluminum foil', 'plastic wrap', 'sandwich bag', 'storage bag', 'paper plate', 'plastic cup', 'styrofoam', 'glove', 'scrubber', 'dish brush', 'drain cleaner', 'toilet cleaner', 'tub cleaner', 'tile cleaner', 'window cleaner', 'dust cloth', 'microfiber',
+  ],
 };
 
 // Keyword match with a SPECIFICITY-first order: multi-word products win over
 // their ingredients ("tomato sauce" → Pantry, not Produce; "chicken broth" →
 // Pantry, not Meat; "chocolate milk" → Dairy, not Pantry). Display order
 // (AISLES) is separate.
-const DETECTION_ORDER = ['frozen', 'dairy', 'pantry', 'household', 'meat', 'bakery', 'produce'];
+const DETECTION_ORDER = ['frozen', 'dairy', 'pantry', 'pharmacy', 'household', 'meat', 'bakery', 'produce'];
 
 export function detectAisle(text) {
   const t = ` ${text.toLowerCase()} `;

@@ -11,6 +11,10 @@ test('aisle detection: dairy, produce, meat, bakery, frozen, pantry, household',
   assert.equal(detectAisle('red onion'), 'produce');
   assert.equal(detectAisle('chicken breast'), 'meat');
   assert.equal(detectAisle('sourdough bread'), 'bakery');
+  assert.equal(detectAisle('burgers'), 'meat');
+  assert.equal(detectAisle('ibuprofen'), 'pharmacy');
+  assert.equal(detectAisle('brussels sprouts'), 'produce');
+  assert.equal(detectAisle('hamburger buns'), 'bakery');
   assert.equal(detectAisle('frozen peas'), 'frozen');
   assert.equal(detectAisle('tomato sauce'), 'pantry');
   assert.equal(detectAisle('paper towels'), 'household');

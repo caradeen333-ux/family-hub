@@ -225,9 +225,10 @@ function createWindow() {
     }
   } catch { /* ignore */ }
 
-  // Compact widget default; whatever the user resized to is remembered
+  // Distribution default = the owner's preferred window (613x804, chosen
+  // 2026-09-10); whatever the user resized to overrides it per machine
   const saved = readPrefs().windowSize;
-  const [width, height] = saved ?? [400, 660];
+  const [width, height] = saved ?? [613, 804];
 
   mainWindow = new BrowserWindow({
     width,
