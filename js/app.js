@@ -125,6 +125,7 @@ async function afterSync() {
     prefillProvisionName();
     return;
   }
+  await autoLinkCalendars(); // hook up shared calendars automatically
   await loadCalendar();
 }
 
@@ -335,6 +336,23 @@ function renderAll() {
   ui.renderAccount(getActiveAccount());
 }
 
+// Auto-link: anyone who already shares their calendar with the active
+// account gets hooked up automatically (matched by email) — no manual IDs.
+async function autoLinkCalendars() {
+  if (!engine.view?.members?.size) return;
+  try {
+    const list = await calendar.discoverCalendars();
+    const matched = calendar.matchSharedCalendars(engine.view.members, Object.values(list));
+    const current = engine.view.config.get('calendars') ?? {};
+    const merged = { ...matched, ...current }; // manual config wins over auto
+    if (JSON.stringify(merged) !== JSON.stringify(current)) {
+      await engine.mutate('config.upsert', { key: 'calendars', value: merged });
+    }
+  } catch (err) {
+    console.error('calendar auto-link failed', err);
+  }
+}
+
 // Schedule view: 'my' | 'all' | memberKey. Calendar ids come from the
 // config.upsert 'calendars' map {memberKey: calendarId}, with the active
 // member defaulting to their own 'primary' calendar.
@@ -468,6 +486,8 @@ function wireStaticControls() {
       `  Then open the same link to join: ${link}`,
       '',
       "Everything lives in our family's own Google Drive folder — we own it, no company sees it. Google will also email you separately about folder access; that's expected.",
+      '',
+      "One optional step (once, ever): share your Google Calendar with the family so everyone's schedules show up — Google Calendar > Settings > Share with specific people.",
       '',
       'See you inside! 🏡',
     ].join('\n');

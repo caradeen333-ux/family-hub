@@ -23,6 +23,22 @@ export async function discoverCalendars() {
   return calendars;
 }
 
+// Auto-link shared calendars: family members who already share their
+// calendar with the signed-in account show up here by email match
+// (primary calendars use the owner's email as their id). Returns
+// {memberKey: calendarId} for the members that matched.
+export function matchSharedCalendars(members, calendarList) {
+  const matches = {};
+  const lower = (s) => String(s ?? '').toLowerCase();
+  for (const [key, member] of members ?? []) {
+    const email = lower(member.email);
+    if (!email) continue;
+    const entry = (calendarList ?? []).find((c) => lower(c.id) === email);
+    if (entry) matches[key] = entry.id;
+  }
+  return matches;
+}
+
 // Fetch all configured calendars and return merged, normalized events.
 // `calendars`: [{calendarId, name, color}] — comes from merged config.
 export async function fetchCalendarEvents(calendars, { days = 7, now = new Date(clock.now()) } = {}) {
