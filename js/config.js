@@ -43,7 +43,7 @@ export const CONFIG = {
   // picks it. appId = project number (client-ID prefix). The API key is a
   // browser key restricted to the Picker API + our origins (set in console).
   pickerAppId: '251957454378',
-  pickerApiKey: '',
+  pickerApiKey: 'AIzaSyDVcT8jU51lFmsnYyy1YutgWtzIIRtz7SQ',
 
   // === App ===
   refreshInterval: 5 * 60 * 1000,
