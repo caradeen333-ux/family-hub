@@ -1293,6 +1293,29 @@ label textarea { resize: vertical; min-height: 56px; }
   padding: 6px 4px 2px;
 }
 
+/* ---------- Poll option builder ---------- */
+
+.poll-options-builder { display: grid; gap: 8px; }
+.builder-label {
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-2);
+}
+#poll-options-container { display: grid; gap: 8px; }
+.poll-option-row { display: flex; gap: 8px; align-items: center; }
+.poll-option-input {
+  flex: 1;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 12px;
+  transition: border-color var(--dur) var(--ease);
+}
+.poll-option-input:focus { border-color: var(--accent); outline: none; }
+.poll-option-input::placeholder { color: var(--text-3); }
+
 /* ---------- Vote notes ---------- */
 
 .poll-option-wrap { display: grid; gap: 4px; }

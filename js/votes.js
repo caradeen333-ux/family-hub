@@ -44,8 +44,9 @@ export function defaultDinnerClosesAt() {
   return defaultMealClosesAt('dinner');
 }
 
-// Start a poll. kind: 'general' | 'dinner'
-export async function createPoll(engine, { title, kind = 'general', date = '', options, closesAt, author }) {
+// Start a poll. kind: 'general' | 'dinner'. Extra fields (like `meal`)
+// ride along in the payload — they're what mealPollForNow filters on.
+export async function createPoll(engine, { title, kind = 'general', date = '', options, closesAt, author, ...extra }) {
   return engine.mutate(EVENT_TYPES.POLL_CREATED, {
     pollId: generateId(),
     title,
@@ -53,6 +54,7 @@ export async function createPoll(engine, { title, kind = 'general', date = '', o
     date,
     options: options.map((label, i) => ({ id: `o${i + 1}`, label })),
     closesAt: closesAt ?? null,
+    ...extra,
   }, { author });
 }
 

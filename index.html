@@ -343,10 +343,11 @@
     </div>
     <form id="form-poll">
       <label>Question <input type="text" name="title" required placeholder="What are we deciding?"></label>
-      <label>Options (one per line)
-        <textarea name="options" rows="4" required>Option 1
-Option 2</textarea>
-      </label>
+      <div class="poll-options-builder">
+        <div class="builder-label">Options</div>
+        <div id="poll-options-container"></div>
+        <button type="button" id="btn-poll-add-option" class="btn-secondary btn-sm">＋ Add option</button>
+      </div>
       <div class="form-actions">
         <button type="button" class="btn-cancel" data-close="modal-poll">Cancel</button>
         <button type="submit" class="btn-primary">Start Poll</button>

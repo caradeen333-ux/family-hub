@@ -660,15 +660,44 @@ function wireAppEvents() {
       ui.toast(winner ? 'Poll closed — winner set 🏆' : 'Poll closed');
     }
   });
+  $('#btn-poll-add-option').addEventListener('click', () => {
+    const container = $('#poll-options-container');
+    const newRow = document.createElement('div');
+    newRow.className = 'poll-option-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'poll-option-input';
+    input.placeholder = `Option ${container.children.length + 1}`;
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        if (input.value.trim()) document.getElementById('btn-poll-add-option').click();
+      }
+    });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon-btn';
+    remove.textContent = '✕';
+    remove.style.width = '32px';
+    remove.style.height = '32px';
+    remove.setAttribute('aria-label', 'Remove option');
+    remove.addEventListener('click', () => {
+      if (container.children.length > 2) newRow.remove();
+    });
+    newRow.append(input, remove);
+    container.appendChild(newRow);
+    input.focus();
+  });
   $('#form-poll').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
-    const options = f.options.value.split('\n').map((s) => s.trim()).filter(Boolean);
-    if (options.length < 2) return ui.toast('Need at least two options', 'error');
+    const options = ui.collectPollOptions();
+    if (options.length < 2) return ui.toast('Add at least two options', 'error');
+    const title = f.title.value.trim();
+    if (!title) return ui.toast('Give the poll a question', 'error');
     const btn = f.querySelector('button[type="submit"]');
-    await ui.busy(btn, votesMod.createPoll(engine, { title: f.title.value.trim(), kind: 'general', options, author: engine.activeMemberKey() }), { label: 'Starting…' });
+    await ui.busy(btn, votesMod.createPoll(engine, { title, kind: 'general', options, author: engine.activeMemberKey() }), { label: 'Starting…' });
     ui.closeModal('modal-poll');
-    f.reset();
     ui.toast('Poll started', 'success');
   });
 

@@ -512,8 +512,54 @@ function lastDinnerWinner(view) {
 function newPollButton() {
   const btn = el('button', 'btn-secondary', '+ New poll');
   btn.style.marginBottom = '14px';
-  btn.addEventListener('click', () => openModal('modal-poll'));
+  btn.addEventListener('click', () => openPollModal());
   return btn;
+}
+
+// Option-builder UI: rows of inputs, + Add option, Enter adds the next row
+export function openPollModal() {
+  const form = $('#form-poll');
+  form.reset();
+  form.title.value = '';
+  const container = $('#poll-options-container');
+  container.replaceChildren();
+
+  const addRow = (focus = false) => {
+    const row = el('div', 'poll-option-row');
+    const input = el('input', 'poll-option-input');
+    input.type = 'text';
+    input.placeholder = `Option ${container.children.length + 1}`;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (input.value.trim()) {
+          const next = addRow(true);
+          next.querySelector('input').focus();
+        }
+      }
+    });
+    const remove = el('button', 'icon-btn', '✕');
+    remove.type = 'button';
+    remove.style.width = '32px';
+    remove.style.height = '32px';
+    remove.setAttribute('aria-label', 'Remove option');
+    remove.addEventListener('click', () => {
+      if (container.children.length > 2) row.remove();
+    });
+    row.append(input, remove);
+    container.appendChild(row);
+    if (focus) input.focus();
+    return row;
+  };
+  addRow(true);
+  addRow();
+  openModal('modal-poll');
+}
+
+export function collectPollOptions() {
+  return [...document.querySelectorAll('#poll-options-container .poll-option-input')]
+    .map((i) => i.value.trim())
+    .filter(Boolean);
 }
 
 function dinnerCard(view, { activeMemberKey }) {
