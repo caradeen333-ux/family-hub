@@ -30,6 +30,15 @@ const SITE_DIR = path.join(__dirname, '..', 'site');
 const APP_PORT = 41073; // fixed port = stable origin = tokens survive updates
 let APP_URL = null;
 const CLIENT_ID = '251957454378-3riapnrcu961tvtfcrdifstv791l70h1.apps.googleusercontent.com'; // "Family Hub Desktop"
+
+// Google (verified by spike S2, 2026-09-09) requires client_secret on the
+// token endpoint for this client — PKCE does NOT replace it. The secret lives
+// ONLY in main/secrets.local.json (gitignored, never in the public repo) and
+// is injected into the installed binary at build time. Web code never sees it.
+let CLIENT_SECRET = null;
+try {
+  CLIENT_SECRET = require('./secrets.local.json').desktopClientSecret ?? null;
+} catch { /* built without the file — sign-in will fail with the secret error */ }
 const SCOPES = 'openid https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file';
 
 let mainWindow;
@@ -92,6 +101,11 @@ function startBundleServer() {
 async function startLoopbackOauth() {
   return new Promise((resolve, reject) => {
     const state = crypto.randomBytes(16).toString('hex');
+    // PKCE: with a verifier/challenge pair the exchange needs no secret for
+    // ANY client type (web or desktop) — Google's "client_secret is missing"
+    // refusal cannot happen. Also strictly more secure.
+    const verifier = crypto.randomBytes(32).toString('base64url');
+    const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
     const server = http.createServer(async (req, res) => {
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname !== '/callback') {
@@ -118,9 +132,10 @@ async function startLoopbackOauth() {
           client_id: CLIENT_ID,
           grant_type: 'authorization_code',
           redirect_uri: callbackUrl,
+          code_verifier: verifier,
         });
-        // Public client: no secret. PKCE isn't used for the Desktop-app-type
-        // client; Google returns tokens directly.
+        if (CLIENT_SECRET) body.set('client_secret', CLIENT_SECRET);
+        // Public client: PKCE replaces the secret entirely.
         const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -150,6 +165,8 @@ async function startLoopbackOauth() {
           response_type: 'code',
           scope: SCOPES,
           state,
+          code_challenge: challenge,
+          code_challenge_method: 'S256',
         });
       shell.openExternal(authorizeUrl);
     });
@@ -205,6 +222,7 @@ ipcMain.handle('oauth:refresh', async (_event, refreshToken) => {
     client_id: CLIENT_ID,
     refresh_token: refreshToken,
   });
+  if (CLIENT_SECRET) body.set('client_secret', CLIENT_SECRET);
   const resp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

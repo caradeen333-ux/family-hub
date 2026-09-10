@@ -4,3 +4,4 @@ site/
 .cache/
 test-results/
 playwright-report/
+main/secrets.local.json
