@@ -1012,6 +1012,7 @@ export function showProvisionScreen({ mode, invite }) {
     $('#btn-provision').textContent = 'Create our family hub';
     $('#provision-family-label').classList.remove('hidden');
     $('#provision-family').required = true;
+    $('#provision-family').focus();
   }
 }
 

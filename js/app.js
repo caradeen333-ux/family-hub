@@ -190,7 +190,12 @@ async function handleProvisionSubmit(e) {
   e.preventDefault();
   const name = $('#provision-name').value.trim();
   const account = getActiveAccount();
-  if (!name || !account) return;
+  if (!account) return;
+  if (!name) {
+    ui.toast('Enter your name too', 'error');
+    $('#provision-name').focus();
+    return;
+  }
 
   const btn = $('#btn-provision');
   btn.disabled = true;

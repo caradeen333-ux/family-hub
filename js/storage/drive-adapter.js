@@ -41,6 +41,8 @@ export class DriveAdapter {
       method,
       headers: { ...(await this.authHeaders()), ...headers },
       body,
+      // Never hang silently — a stalled request must fail fast and visibly
+      signal: AbortSignal.timeout(20_000),
     });
     if (resp.status === 401) {
       const err = new Error('drive-401');
