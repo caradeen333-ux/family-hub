@@ -91,11 +91,14 @@ export class DriveAdapter {
   // a clobbered update leaves our ids out of the file and they retry next
   // sync as duplicate lines (invisible to merge). Spike S5 tunes this.
   async mediaUpdate(fileId, text, etag) {
-    const resp = await this.driveFetch(`${fileId}`, {
+    // MUST use the upload endpoint with uploadType=media — PATCHing the
+    // metadata URL with raw content 400s (this bug was masked by the test
+    // mocks accepting both paths and bit the first real provision)
+    const url = `${DRIVE_UPLOAD}/${fileId}?uploadType=media`;
+    const resp = await this.fetchFn(url, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { ...(await this.authHeaders()), 'Content-Type': 'text/plain' },
       body: text,
-      expectJson: false,
     });
     if (resp.status === 412 || resp.status === 409) {
       const err = new Error(`Drive update conflict on ${fileId}`);
@@ -112,11 +115,12 @@ export class DriveAdapter {
 
   async getMetadata(fileId) {
     return this.driveJson(`${fileId}`, {
-      query: 'fields=id,name,etag,appProperties,parents,trashed',
+      // appProperties AND etag both 400 in `fields` under drive.file
+      query: 'fields=id,name,parents,trashed',
     });
   }
 
-  async listChildren(folderId, query = '', fields = 'files(id,name,appProperties,etag,trashed)') {
+  async listChildren(folderId, query = '', fields = 'files(id,name,trashed)') {
     const q = [`'${folderId}' in parents`, 'trashed = false', query].filter(Boolean).join(' and ');
     const url = `${DRIVE_API}?q=${encodeURIComponent(q)}&fields=${fields}&pageSize=1000`;
     const resp = await this.fetchFn(url, { headers: await this.authHeaders() });
@@ -132,8 +136,13 @@ export class DriveAdapter {
 
   // First person: find-or-create the family folder, then dir.json + own log.
   async provision({ name, email }) {
-    let folder = await this.findFolderByProperty();
-    if (!folder) folder = await this.findFolderByName('Family Hub');
+    // Searches are best-effort: under drive.file, files.list with
+    // appProperties queries can 403 (spike S1 confirmed live). A fresh
+    // provision just creates; re-provisioning a device reaches the folder
+    // via dir.json/invite, not search.
+    let folder = null;
+    try { folder = await this.findFolderByProperty(); } catch { folder = null; }
+    try { if (!folder) folder = await this.findFolderByName('Family Hub'); } catch { folder = null; }
     if (!folder) {
       folder = await this.createFile({
         name: 'Family Hub',
@@ -300,7 +309,10 @@ export class DriveAdapter {
 
     // Fallback / conflict-copy sweep: list the folder, match by filename
     // pattern (conflict copies like `mom (1)-2026-09.jsonl` included).
-    const children = await this.listChildren(folderId);
+    // Non-fatal: drive.file may 403 listing (S1) — dir.json is the primary
+    // discovery authority, listing is only a bonus sweep.
+    let children = [];
+    try { children = await this.listChildren(folderId); } catch { children = []; }
     for (const file of children) {
       if (file.name === DIR_FILE_NAME) continue;
       const m = file.name.match(/^([\w.-]+?)(\s\(\d+\))?-\d{4}-\d{2}\.jsonl$/);
@@ -318,18 +330,18 @@ export class DriveAdapter {
     const out = { dirFileId, folderId, dirEtag: dir?.etag, logs: [], malformed: 0 };
     for (const entry of logs) {
       try {
-        const meta = await this.getMetadata(entry.fileId);
-        if (meta.trashed) continue;
-        if (knownEtags[entry.fileId] === meta.etag) {
-          out.logs.push({ ...entry, unchanged: true });
+        // Media-first: the download's ETag header carries the etag (the
+        // metadata `etag` field is NOT selectable under drive.file)
+        const media = await this.mediaGet(entry.fileId);
+        if (knownEtags[entry.fileId] === media.etag) {
+          out.logs.push({ ...entry, unchanged: true, etag: media.etag });
           continue;
         }
-        const media = await this.mediaGet(entry.fileId);
         const parsed = parseLogFile(media.text);
-        out.logs.push({ ...entry, events: parsed.events, malformed: parsed.malformed, etag: meta.etag, unchanged: false });
+        out.logs.push({ ...entry, events: parsed.events, malformed: parsed.malformed, etag: media.etag, unchanged: false });
         out.malformed += parsed.malformed;
       } catch (err) {
-        if (err.status === 404) continue; // deleted between list and get
+        if (err.status === 404) continue; // deleted or trashed — skip
         throw err;
       }
     }

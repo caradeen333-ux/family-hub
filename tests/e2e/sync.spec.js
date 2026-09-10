@@ -11,7 +11,7 @@ test('SYNC-01 offline note flushes to Drive exactly once, then acks', async ({ p
   await seedDirState(TEST_DIRSTATE)({ context: page.context() });
 
   const drive = mockDrive(page);
-  await page.route('**/www.googleapis.com/drive/v3/**', drive.routeAll);
+  await page.route('**/www.googleapis.com/**/drive/v3/**', drive.routeAll);
 
   await page.goto('/' + T);
   await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });
@@ -48,7 +48,7 @@ test('SYNC-02 replayed append is idempotent (no duplicate lines)', async ({ page
   await seedDirState(TEST_DIRSTATE)({ context: page.context() });
 
   const drive = mockDrive(page);
-  await page.route('**/www.googleapis.com/drive/v3/**', drive.routeAll);
+  await page.route('**/www.googleapis.com/**/drive/v3/**', drive.routeAll);
 
   await page.goto('/' + T);
   await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });
@@ -117,7 +117,7 @@ test('SYNC-04 malformed remote lines are tolerated', async ({ page }) => {
   await seedDirState(TEST_DIRSTATE)({ context: page.context() });
 
   const drive = mockDrive(page);
-  await page.route('**/www.googleapis.com/drive/v3/**', drive.routeAll);
+  await page.route('**/www.googleapis.com/**/drive/v3/**', drive.routeAll);
 
   await page.goto('/' + T);
   await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });

@@ -11,7 +11,7 @@ const INVITE_HASH = '#invite=' + base64url({ v: 1, folderId: 'FOLDER', dirFileId
 test('ONB-01 founder provisions, shares by email, gets an invite link', async ({ page }) => {
   await seedAccounts({ [TEST_EMAIL]: accountPatch() })({ context: page.context() });
   const drive = mockDrive(page);
-  await page.route('**/www.googleapis.com/drive/v3/**', drive.routeAll);
+  await page.route('**/www.googleapis.com/**/drive/v3/**', drive.routeAll);
 
   await page.goto('/' + T);
   // Provision screen: family name first, personal name pre-filled from Google
@@ -48,7 +48,7 @@ test('ONB-01 founder provisions, shares by email, gets an invite link', async ({
 test('ONB-02 join without folder access shows the friendly message', async ({ page }) => {
   await seedAccounts({ [TEST_EMAIL]: accountPatch() })({ context: page.context() });
   const drive = mockDrive(page);
-  await page.route('**/www.googleapis.com/drive/v3/**', drive.routeAll);
+  await page.route('**/www.googleapis.com/**/drive/v3/**', drive.routeAll);
   // The invite's dir.json id doesn't exist in the mock — the family never
   // shared the folder with this account (no open-gesture access)
   const MISSING_INVITE = '#invite=' + base64url({ v: 1, folderId: 'FOLDER', dirFileId: 'MISSING' })
@@ -65,7 +65,7 @@ test('ONB-02 join without folder access shows the friendly message', async ({ pa
 test('ONB-03 re-opening an invite as an existing member just enters the app', async ({ page }) => {
   await seedAccounts({ [TEST_EMAIL]: accountPatch() })({ context: page.context() });
   const drive = mockDrive(page);
-  await page.route('**/www.googleapis.com/drive/v3/**', drive.routeAll);
+  await page.route('**/www.googleapis.com/**/drive/v3/**', drive.routeAll);
   // The member already exists in dir.json (founder provisioned earlier)
   drive.files.get('DIRFILE').content = JSON.stringify({
     v: 1,

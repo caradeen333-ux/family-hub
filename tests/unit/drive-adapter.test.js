@@ -21,7 +21,9 @@ function createMockDrive() {
   async function handle(url, init = {}) {
     calls.push({ method: init.method ?? 'GET', url, body: init.body });
     const u = new URL(url);
-    const path = u.pathname;
+    // Real Drive serves uploads from /upload/drive/v3/... — normalize so the
+    // mock can't mask endpoint mistakes (mediaUpdate once hit the wrong host)
+    const path = u.pathname.replace(/^\/upload(?=\/drive)/, '');
     const m = /^\/drive\/v3\/files\/([^/]+)(?:\/(permissions))?$/.exec(path);
     const listMatch = /^\/drive\/v3\/files\/?$/.test(path);
 

@@ -90,7 +90,9 @@ export function mockDrive(page) {
   const routeAll = async (route) => {
     const req = route.request();
     const url = new URL(req.url());
-    const path = url.pathname.replace(/\/+$/, ''); // strip trailing slash
+    // Normalize the upload endpoint (/upload/drive/v3/...) so the mock
+    // mirrors the real API's two URL spaces without masking mistakes
+    const path = url.pathname.replace(/^\/upload(?=\/drive)/, '').replace(/\/+$/, ''); // strip trailing slash
     calls.push({ method: req.method(), path, query: url.search });
 
     if (path === '/drive/v3/files' && req.method() === 'POST') {
