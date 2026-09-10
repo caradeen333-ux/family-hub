@@ -3,11 +3,11 @@
 
 import { sortedNotes } from './notes.js';
 import { sortedChores } from './chores.js';
-import { isPollOpen, leadingOptions, dinnerPollForToday, todayKey } from './votes.js';
+import { isPollOpen, leadingOptions, mealPollForNow, mealOfDay, MEAL_LABELS, MEAL_EMOJIS, todayKey } from './votes.js';
 import { formatTime } from './calendar.js';
 import { renderMarkdown, wrapSelection, toggleLinePrefix } from './format.js';
 import { getAccounts, getActiveEmail } from './auth/token-store.js';
-import { sortedLists, itemsInList, groupByAisle, LIST_EMOJIS, DEFAULT_LIST_EMOJI, aisleInfo } from './shopping.js';
+import { sortedLists, itemsInList, groupByAisle, LIST_EMOJIS, DEFAULT_LIST_EMOJI, aisleInfo, wishItems, detectStore, WISHLIST_ID } from './shopping.js';
 import { clock } from './testing/clock.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -420,13 +420,19 @@ function noteCard(note) {
   });
 
   const actions = el('div', 'note-actions');
+  const edit = el('button', 'icon-btn', '✏️');
+  edit.setAttribute('aria-label', 'Edit note');
+  edit.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.dispatchEvent(new CustomEvent('fh:note-edit', { detail: note }));
+  });
   const del = el('button', 'icon-btn', '🗑');
   del.setAttribute('aria-label', 'Delete note');
   del.addEventListener('click', (e) => {
     e.stopPropagation();
     document.dispatchEvent(new CustomEvent('fh:note-delete', { detail: note }));
   });
-  actions.appendChild(del);
+  actions.append(edit, del);
   card.appendChild(actions);
   return card;
 }
@@ -511,20 +517,22 @@ function newPollButton() {
 }
 
 function dinnerCard(view, { activeMemberKey }) {
-  const open = dinnerPollForToday(view);
+  const open = mealPollForNow(view);
+  const meal = mealOfDay();
   const card = el('div', 'card dinner-card');
 
   if (open) {
-    card.appendChild(el('div', 'dinner-kicker', '🍽️ Tonight'));
-    card.appendChild(el('div', 'dinner-title', "What's for dinner?"));
+    card.appendChild(el('div', 'dinner-kicker', `${MEAL_EMOJIS[meal] ?? '🍽️'} ${meal[0].toUpperCase() + meal.slice(1)}`));
+    card.appendChild(el('div', 'dinner-title', open.poll.title ?? MEAL_LABELS[meal]));
     const options = el('div', 'poll-options');
     const counts = [...open.tallies.values()];
     const max = Math.max(0, ...counts);
     for (const option of open.poll.options ?? []) {
       const count = open.tallies.get(option.id) ?? 0;
-      const mine = open.votes.get(activeMemberKey) === option.id;
+      const myVote = open.votes.get(activeMemberKey);
+      const mine = myVote?.optionId === option.id;
+      const wrap = el('div', 'poll-option-wrap');
       const row = el('button', `poll-option ${mine ? 'my-vote' : ''}`);
-      row.innerHTML = '';
       const fill = el('div', 'poll-option-fill');
       fill.style.transform = `scaleX(${max ? count / max : 0})`;
       const content = el('div', 'poll-option-content');
@@ -536,7 +544,16 @@ function dinnerCard(view, { activeMemberKey }) {
       row.addEventListener('click', () => {
         document.dispatchEvent(new CustomEvent('fh:vote', { detail: { pollId: open.poll.pollId, optionId: option.id } }));
       });
-      options.appendChild(row);
+      wrap.appendChild(row);
+      // Vote notes: "Cook at home — WHAT?" / "Takeout — from WHERE?"
+      if (mine) wrap.appendChild(voteNoteInput(open.poll.pollId, option.id, myVote.note));
+      // Show other voters' notes inline
+      const voterNotes = [...open.votes.entries()].filter(([author, v]) => v.optionId === option.id && v.note);
+      for (const [, v] of voterNotes) {
+        const line = el('div', 'voter-note', `💬 ${v.note}`);
+        wrap.appendChild(line);
+      }
+      options.appendChild(wrap);
     }
     card.appendChild(options);
 
@@ -557,15 +574,15 @@ function dinnerCard(view, { activeMemberKey }) {
     return card;
   }
 
-  // No open dinner poll → one-tap create card
+  // No open meal poll for this time of day → one-tap create card
   const create = el('div', 'dinner-create');
-  create.appendChild(el('span', 'empty-icon', '🍽️'));
-  create.appendChild(el('div', 'dinner-title', "What's for dinner?"));
+  create.appendChild(el('span', 'empty-icon', MEAL_EMOJIS[meal] ?? '🍽️'));
+  create.appendChild(el('div', 'dinner-title', MEAL_LABELS[meal] ?? "What's for dinner?"));
   const last = lastDinnerWinner(view);
   create.appendChild(el('div', 'empty-sub', last && last.label
     ? `Last decision: ${last.label}`
     : 'No poll yet — start one in one tap.'));
-  const btn = el('button', 'btn-primary', 'Start dinner vote');
+  const btn = el('button', 'btn-primary', `Start ${meal} vote`);
   btn.style.marginTop = '14px';
   btn.addEventListener('click', () => {
     document.dispatchEvent(new CustomEvent('fh:dinner-poll'));
@@ -585,8 +602,10 @@ function pollCard({ poll, tallies, votes, closedWinner }, { activeMemberKey, mem
 
   for (const option of poll.options ?? []) {
     const count = tallies.get(option.id) ?? 0;
-    const mine = votes.get(activeMemberKey) === option.id;
+    const myVote = votes.get(activeMemberKey);
+    const mine = myVote?.optionId === option.id;
     const winner = closed && closedWinner === option.id;
+    const wrap = el('div', 'poll-option-wrap');
     const row = el('div', `poll-option ${mine ? 'my-vote' : ''} ${winner ? 'winner' : ''}`);
     const fill = el('div', 'poll-option-fill');
     fill.style.transform = `scaleX(${max ? count / max : 0})`;
@@ -595,7 +614,7 @@ function pollCard({ poll, tallies, votes, closedWinner }, { activeMemberKey, mem
     content.appendChild(el('span', 'poll-option-count', count ? `${count}` : ''));
     row.append(fill, content);
     // Voter chips: who picked this option
-    const voters = [...votes.entries()].filter(([, oid]) => oid === option.id);
+    const voters = [...votes.entries()].filter(([, v]) => v.optionId === option.id);
     if (voters.length) {
       const chipRow = el('div', 'poll-voters');
       for (const [memberKey] of voters) {
@@ -607,13 +626,19 @@ function pollCard({ poll, tallies, votes, closedWinner }, { activeMemberKey, mem
       }
       row.appendChild(chipRow);
     }
+    wrap.appendChild(row);
+    // Vote notes on the selected option
+    if (mine) wrap.appendChild(voteNoteInput(poll.pollId, option.id, myVote.note));
+    for (const [, v] of voters) {
+      if (v.note) wrap.appendChild(el('div', 'voter-note', `💬 ${v.note}`));
+    }
     if (!closed && poll.kind !== 'dinner') {
       row.style.cursor = 'pointer';
       row.addEventListener('click', () => {
         document.dispatchEvent(new CustomEvent('fh:vote', { detail: { pollId: poll.pollId, optionId: option.id } }));
       });
     }
-    options.appendChild(row);
+    options.appendChild(wrap);
   }
   card.appendChild(options);
 
@@ -660,11 +685,14 @@ export function renderChores(choresMap, { activeMemberKey, members }) {
     row.append(check, title);
     if (due) row.appendChild(due);
     if (chore.assignee) row.appendChild(memberChip(chore.assignee, members));
+    const edit = el('button', 'icon-btn', '✏️');
+    edit.setAttribute('aria-label', 'Edit chore');
+    edit.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:chore-edit', { detail: chore })));
     const del = el('button', 'icon-btn', '🗑');
     del.setAttribute('aria-label', 'Delete chore');
     del.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:chore-delete', { detail: chore })));
-    row.appendChild(del);
-    // Tap the row → edit
+    row.append(edit, del);
+    // Tap the row → edit (kept for mobile muscle memory)
     row.addEventListener('click', (e) => {
       if (e.target.closest('button')) return;
       document.dispatchEvent(new CustomEvent('fh:chore-edit', { detail: chore }));
@@ -702,7 +730,8 @@ export function renderShopping(view, { activeMemberKey }) {
   const switcher = $('#list-switcher');
   const listEl = $('#shopping-list');
 
-  const lists = sortedLists(view);
+  // The wish list lives in its own pinned section, not the chip switcher
+  const lists = sortedLists(view).filter((l) => l.listId !== WISHLIST_ID);
   if (!lists.length) {
     switcher.replaceChildren();
     $('#shopping-progress').classList.add('hidden');
@@ -806,6 +835,25 @@ function shopItemRow(item, { done = false } = {}) {
   return row;
 }
 
+// Inline note input for a vote — "Cook at home — WHAT are we cooking?"
+function voteNoteInput(pollId, optionId, currentNote) {
+  const input = el('input', 'poll-note-input');
+  input.type = 'text';
+  input.placeholder = 'Add a note — what / where? (optional)';
+  input.value = currentNote ?? '';
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') input.blur();
+    e.stopPropagation();
+  });
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('change', () => {
+    document.dispatchEvent(new CustomEvent('fh:vote-note', {
+      detail: { pollId, optionId, note: input.value.trim() },
+    }));
+  });
+  return input;
+}
+
 export function openListModal() {
   const form = $('#form-list');
   form.reset();
@@ -824,6 +872,41 @@ export function openListModal() {
   }));
   openModal('modal-list');
   form.name.focus();
+}
+
+// ---------- Wish list (shopping sub-section) ----------
+
+export function renderWishlist(view) {
+  const container = $('#wishlist');
+  const items = wishItems(view);
+  if (!items.length) {
+    container.replaceChildren(el('div', 'wish-empty', 'Nothing yet — add a gift idea or paste an Amazon / Walmart / Target link.'));
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  for (const item of items) {
+    const row = el('div', 'wish-item');
+    if (item.url) {
+      const store = detectStore(item.url);
+      const badge = el('span', 'store-badge', `${store.emoji} ${store.label}`);
+      const link = el('a', 'wish-link', item.text);
+      link.href = item.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      row.append(badge, link);
+    } else {
+      row.appendChild(el('span', 'wish-text', item.text));
+    }
+    const edit = el('button', 'icon-btn', '✏️');
+    edit.setAttribute('aria-label', 'Edit wish');
+    edit.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:wish-edit', { detail: item })));
+    const del = el('button', 'icon-btn', '🗑');
+    del.setAttribute('aria-label', 'Remove wish');
+    del.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:wish-delete', { detail: item })));
+    row.append(edit, del);
+    frag.appendChild(row);
+  }
+  container.replaceChildren(frag);
 }
 
 // ---------- Settings ----------

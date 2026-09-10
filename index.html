@@ -69,6 +69,9 @@
       <button id="btn-refresh" class="icon-btn" title="Refresh" aria-label="Refresh">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
       </button>
+      <button id="btn-winsize" class="icon-btn" title="Toggle window size" aria-label="Toggle window size">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+      </button>
       <button id="btn-theme" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">
         <svg class="icon-sun" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M19.4 4.6l-1.8 1.8M6.4 17.6l-1.8 1.8"/></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 13.5A8.5 8.5 0 1 1 10.5 3a7 7 0 0 0 10.5 10.5Z"/></svg>
@@ -110,8 +113,9 @@
             <option value="category">Category</option>
           </select>
         </div>
-        <label class="done-toggle">
-          <input type="checkbox" id="notes-show-done" checked> Show completed
+        <label class="toggle-row">
+          <span>Show completed</span>
+          <span class="switch"><input type="checkbox" id="notes-show-done" checked><span class="track"><span class="knob"></span></span></span>
         </label>
       </div>
       <div class="quick-add-bar">
@@ -151,6 +155,14 @@
       <div class="shopping-footer">
         <button id="btn-clear-checked" class="btn-secondary btn-sm hidden">Clear checked</button>
         <button id="btn-new-list" class="btn-secondary btn-sm">＋ New list</button>
+      </div>
+      <div class="wishlist-section" id="wishlist-section">
+        <div class="day-group-title">🎁 Wish list</div>
+        <div class="quick-add-bar wish-add-bar">
+          <input id="wish-input" type="text" placeholder="Add a wish… name (or paste a link)" aria-label="Wish list item">
+          <button id="btn-add-wish" class="btn-primary btn-sm">Add</button>
+        </div>
+        <div id="wishlist" class="wishlist"></div>
       </div>
     </section>
   </main>
@@ -230,9 +242,10 @@
         <button type="button" class="fmt-btn" data-fmt="numlist" title="Numbered list" aria-label="Numbered list">1. List</button>
         <button type="button" class="fmt-btn" data-fmt="link" title="Link" aria-label="Link">🔗</button>
       </div>
-      <label>Note
-        <textarea name="note" id="note-textarea" rows="5" required placeholder="What needs to be done? Supports **bold**, *italic*, \`code\`, - lists, and [links](https://…)"></textarea>
+      <label>Your note
+        <textarea name="note" id="note-textarea" rows="5" required placeholder="Write anything — it's shared with the whole family"></textarea>
       </label>
+      <p class="note-format-hint">Formatting: <b>**bold**</b> · <i>*italic*</i> · <code>- lists</code> · <a>[links](https://…)</a></p>
       <div class="form-row">
         <label>Importance
           <select name="importance">
@@ -253,8 +266,8 @@
         <label>Time <input type="time" name="time"></label>
       </div>
       <div class="form-row">
-        <label class="toggle-label">📌 Pinned <input type="checkbox" name="pinned"></label>
-        <label class="toggle-label">✅ Done <input type="checkbox" name="done"></label>
+        <label class="toggle-row"><span>📌 Pinned</span><span class="switch"><input type="checkbox" name="pinned"><span class="track"><span class="knob"></span></span></span></label>
+        <label class="toggle-row"><span>✅ Done</span><span class="switch"><input type="checkbox" name="done"><span class="track"><span class="knob"></span></span></span></label>
       </div>
       <div class="form-actions">
         <button type="button" class="btn-cancel" data-close="modal-note">Cancel</button>
@@ -297,7 +310,7 @@
         <label>Assign to <select name="assignee"><option value="">— anyone —</option></select></label>
         <label>Due date <input type="date" name="dueDate"></label>
       </div>
-      <label class="toggle-label">✅ Done <input type="checkbox" name="done"></label>
+      <label class="toggle-row"><span>✅ Done</span><span class="switch"><input type="checkbox" name="done"><span class="track"><span class="knob"></span></span></span></label>
       <div class="form-actions">
         <button type="button" class="btn-cancel" data-close="modal-chore">Cancel</button>
         <button type="submit" class="btn-primary">Save Chore</button>
@@ -372,8 +385,8 @@ Option 2</textarea>
       </section>
       <section class="settings-section">
         <h3>Display</h3>
-        <label class="toggle-label"><input type="checkbox" id="setting-darkmode"> Dark mode</label>
-        <label class="toggle-label"><input type="checkbox" id="setting-alwaysontop"> Desktop: Always on top</label>
+        <label class="toggle-row"><span>Dark mode</span><span class="switch"><input type="checkbox" id="setting-darkmode"><span class="track"><span class="knob"></span></span></span></label>
+        <label class="toggle-row"><span>Desktop: Always on top</span><span class="switch"><input type="checkbox" id="setting-alwaysontop"><span class="track"><span class="knob"></span></span></span></label>
       </section>
       <section class="settings-section">
         <h3>Data</h3>

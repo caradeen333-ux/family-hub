@@ -108,7 +108,8 @@ export function buildView(events, { now }) {
         break;
       case 'vote.cast': {
         const state = pollStates.get(ev.payload.pollId);
-        if (state) state.votes.set(ev.author, ev.payload.optionId);
+        // votes: author → {optionId, note} (note optional, survives re-votes)
+        if (state) state.votes.set(ev.author, { optionId: ev.payload.optionId, note: ev.payload.note ?? '' });
         break;
       }
       case 'config.upsert':
@@ -139,8 +140,8 @@ export function buildView(events, { now }) {
   for (const [pollId, state] of pollStates) {
     const tallies = new Map();
     for (const option of state.poll.options ?? []) tallies.set(option.id, 0);
-    for (const optionId of state.votes.values()) {
-      tallies.set(optionId, (tallies.get(optionId) ?? 0) + 1);
+    for (const vote of state.votes.values()) {
+      tallies.set(vote.optionId, (tallies.get(vote.optionId) ?? 0) + 1);
     }
     polls.set(pollId, {
       poll: state.poll,

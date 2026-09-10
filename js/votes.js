@@ -15,10 +15,33 @@ export function generateId() {
 
 export const DINNER_OPTIONS = ['Cook at home', 'Takeout', 'Leftovers'];
 
-export function defaultDinnerClosesAt() {
+// Time-of-day meal awareness: the "What's for dinner?" card becomes
+// breakfast/lunch/dinner depending on the hour. Each meal gets its own
+// poll for the day, so breakfast and dinner can coexist.
+export function mealOfDay(now = clock.now()) {
+  const h = new Date(now).getHours();
+  if (h < 10) return 'breakfast';
+  if (h < 15) return 'lunch';
+  return 'dinner';
+}
+
+export const MEAL_LABELS = {
+  breakfast: "What's for breakfast?",
+  lunch: "What's for lunch?",
+  dinner: "What's for dinner?",
+};
+
+export const MEAL_EMOJIS = { breakfast: '🍳', lunch: '🥪', dinner: '🍽️' };
+
+export function defaultMealClosesAt(meal = mealOfDay()) {
   const d = new Date(clock.now());
-  d.setHours(17, 0, 0, 0);
+  const hour = meal === 'breakfast' ? 10 : meal === 'lunch' ? 15 : 17;
+  d.setHours(hour, 0, 0, 0);
   return d.toISOString();
+}
+
+export function defaultDinnerClosesAt() {
+  return defaultMealClosesAt('dinner');
 }
 
 // Start a poll. kind: 'general' | 'dinner'
@@ -33,20 +56,28 @@ export async function createPoll(engine, { title, kind = 'general', date = '', o
   }, { author });
 }
 
-// The one-tap "What's for dinner?" poll for today
-export async function startDinnerPoll(engine, { author } = {}) {
+// The one-tap meal poll for right now (breakfast/lunch/dinner by the hour)
+export async function startMealPoll(engine, { author, meal = mealOfDay() } = {}) {
   return createPoll(engine, {
-    title: "What's for dinner?",
+    title: MEAL_LABELS[meal] ?? MEAL_LABELS.dinner,
     kind: 'dinner',
+    meal,
     date: todayKey(),
     options: [...DINNER_OPTIONS, 'Eating out'],
-    closesAt: defaultDinnerClosesAt(),
+    closesAt: defaultMealClosesAt(meal),
     author,
   });
 }
 
-export async function castVote(engine, pollId, optionId, author) {
-  return engine.mutate(EVENT_TYPES.VOTE_CAST, { pollId, optionId }, { author });
+export async function startDinnerPoll(engine, { author } = {}) {
+  return startMealPoll(engine, { author, meal: 'dinner' });
+}
+
+// Re-voting the same option with a note updates it (same merge key —
+// vote:<pollId>:<author>). A note answers "Cook at home — WHAT are we
+// cooking?" / "Takeout — from where?".
+export async function castVote(engine, pollId, optionId, author, note = '') {
+  return engine.mutate(EVENT_TYPES.VOTE_CAST, { pollId, optionId, note }, { author });
 }
 
 // Creator-close only at the UI layer; merge accepts any poll.closed for robustness
@@ -67,16 +98,22 @@ export function isPollOpen(poll, now = clock.now()) {
   return now < new Date(poll.closesAt).getTime();
 }
 
-// The open dinner poll for today, if any
-export function dinnerPollForToday(view, now = clock.now()) {
+// The open meal poll for THIS moment (right meal, today, still open)
+export function mealPollForNow(view, now = clock.now()) {
   const today = todayKey();
+  const meal = mealOfDay(now);
   for (const { poll, tallies, votes, closedWinner } of view?.polls?.values() ?? []) {
     if (poll.kind !== 'dinner') continue;
     if (poll.date && poll.date !== today) continue;
+    if ((poll.meal ?? 'dinner') !== meal) continue; // old polls default to dinner
     if (closedWinner !== undefined) continue;
     if (isPollOpen(poll, now)) return { poll, tallies, votes };
   }
   return null;
+}
+
+export function dinnerPollForToday(view, now = clock.now()) {
+  return mealPollForNow(view, now);
 }
 
 // Leading option(s) by tally. Returns [] on a zero-vote poll or a tie.

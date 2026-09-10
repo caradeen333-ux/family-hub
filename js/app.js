@@ -41,9 +41,17 @@ function renderNotesPanel() {
   ui.renderNoteFilters(engine.view.notes, notesFilter);
 }
 
+let wishlistEnsured = false;
+
 function renderShoppingPanel() {
   if (!engine.view) return;
   ui.renderShopping(engine.view, { activeMemberKey: engine.activeMemberKey() });
+  ui.renderWishlist(engine.view);
+  // One-shot: the wish list section exists for every family
+  if (!wishlistEnsured && engine.view.lists.size > 0 && !shoppingMod.ensureWishlist(engine.view)) {
+    wishlistEnsured = true;
+    shoppingMod.createWishlist(engine).catch(() => {});
+  }
 }
 
 // ---------- boot ----------
@@ -329,6 +337,21 @@ async function loadCalendar() {
 function wireStaticControls() {
   $('#btn-theme').addEventListener('click', ui.toggleTheme);
   $('#setting-darkmode')?.addEventListener('change', ui.toggleTheme);
+  // Window size toggle (Electron only — hidden on web/PWA)
+  const SIZES = [
+    { width: 400, height: 660 }, // compact widget ("pin size")
+    { width: 560, height: 860 }, // expanded
+  ];
+  if (window.__electron?.setWindowSize) {
+    $('#btn-winsize').addEventListener('click', () => {
+      const compact = window.innerWidth < 500;
+      const next = compact ? SIZES[1] : SIZES[0];
+      window.__electron.setWindowSize(next.width, next.height);
+      ui.toast(compact ? 'Expanded' : 'Compact', 'success');
+    });
+  } else {
+    $('#btn-winsize').classList.add('hidden');
+  }
   $('#btn-refresh').addEventListener('click', async () => {
     const btn = $('#btn-refresh');
     await ui.busy(btn, (async () => {
@@ -593,9 +616,15 @@ function wireAppEvents() {
     await votesMod.castVote(engine, e.detail.pollId, e.detail.optionId, author);
     ui.toast('Vote recorded ✓', 'success');
   });
+  // Vote note (quiet save — no toast, re-cast same option with the note)
+  document.addEventListener('fh:vote-note', async (e) => {
+    const author = engine.activeMemberKey();
+    await votesMod.castVote(engine, e.detail.pollId, e.detail.optionId, author, e.detail.note);
+  });
   document.addEventListener('fh:dinner-poll', async () => {
-    await votesMod.startDinnerPoll(engine, { author: engine.activeMemberKey() });
-    ui.toast("Dinner poll started 🍽️", 'success');
+    const meal = votesMod.mealOfDay();
+    await votesMod.startMealPoll(engine, { author: engine.activeMemberKey(), meal });
+    ui.toast(`${votesMod.MEAL_EMOJIS[meal]} ${meal[0].toUpperCase() + meal.slice(1)} poll started`, 'success');
   });
   // Creator closes: winner = leading option (none on ties / zero votes)
   document.addEventListener('fh:poll-close', async (e) => {
@@ -724,6 +753,49 @@ function wireAppEvents() {
     }
   });
   $('#btn-new-list').addEventListener('click', () => ui.openListModal());
+  // Wish list
+  const addWish = async (raw) => {
+    const value = raw.trim();
+    if (!value) return;
+    let text = value;
+    let url = '';
+    if (/^https?:\/\//i.test(value)) {
+      url = value;
+      const store = shoppingMod.detectStore(url);
+      text = await ui.promptDialog('Name this wish — what is it?', { placeholder: `${store.label} — something specific` });
+      if (!text) return;
+    }
+    await shoppingMod.addWishItem(engine, { text, url }, { author: engine.activeMemberKey() });
+    ui.toast(url ? 'Added to the wish list 🎁' : 'Added to the wish list', 'success');
+  };
+  $('#wish-input').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const input = e.target;
+    const raw = input.value;
+    input.value = '';
+    addWish(raw);
+  });
+  $('#btn-add-wish').addEventListener('click', async () => {
+    const input = $('#wish-input');
+    const raw = input.value;
+    input.value = '';
+    await addWish(raw);
+  });
+  document.addEventListener('fh:wish-delete', async (e) => {
+    const item = e.detail;
+    if (await ui.confirmDialog(`Remove "${item.text}" from the wish list?`)) {
+      await shoppingMod.deleteItem(engine, item);
+      ui.toast('Removed');
+    }
+  });
+  document.addEventListener('fh:wish-edit', async (e) => {
+    const item = e.detail;
+    const name = await ui.promptDialog('Edit wish name', { placeholder: 'Item name' });
+    if (!name) return;
+    const url = await ui.promptDialog('Edit wish link (https://…) — leave blank to keep', { placeholder: item.url ?? 'https://…' });
+    await shoppingMod.updateWishItem(engine, item, { text: name, url: url || item.url || '' });
+    ui.toast('Wish updated');
+  });
   $('#form-list').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;

@@ -225,11 +225,15 @@ function createWindow() {
     }
   } catch { /* ignore */ }
 
+  // Compact widget default; whatever the user resized to is remembered
+  const saved = readPrefs().windowSize;
+  const [width, height] = saved ?? [400, 660];
+
   mainWindow = new BrowserWindow({
-    width: 500,
-    height: 720,
-    minWidth: 380,
-    minHeight: 500,
+    width,
+    height,
+    minWidth: 360,
+    minHeight: 480,
     frame: true,
     resizable: true,
     alwaysOnTop,
@@ -246,6 +250,17 @@ function createWindow() {
 
   mainWindow.setTitle('Family Hub');
   mainWindow.loadURL(APP_URL); // local bundle — no cache clearing, ever
+
+  // Remember the size across sessions (debounced — resize fires constantly)
+  let resizeTimer = null;
+  mainWindow.on('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (!mainWindow.isDestroyed() && !mainWindow.isMaximized()) {
+        savePrefs({ windowSize: mainWindow.getSize() });
+      }
+    }, 400);
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
@@ -276,6 +291,9 @@ ipcMain.handle('oauth:refresh', async (_event, refreshToken) => {
     throw err;
   }
   return data;
+});
+ipcMain.on('set-window-size', (_event, { width, height }) => {
+  if (mainWindow) mainWindow.setSize(width, height);
 });
 ipcMain.on('set-always-on-top', (_event, onTop) => {
   if (mainWindow) mainWindow.setAlwaysOnTop(onTop);

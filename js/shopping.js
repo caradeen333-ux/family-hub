@@ -12,6 +12,55 @@ import { clock } from './testing/clock.js';
 
 export const DEFAULT_LIST_EMOJI = '🛒';
 export const LIST_EMOJIS = ['🛒', '🏠', '🧴', '🛠️', '🎄', '🐕', '🎁', '📦'];
+export const WISHLIST_ID = 'wishlist';
+
+// Store detection for wish links — badge label + emoji per domain
+export function detectStore(url) {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, '');
+    if (host.includes('amazon')) return { label: 'Amazon', emoji: '📦' };
+    if (host.includes('walmart')) return { label: 'Walmart', emoji: '✳️' };
+    if (host.includes('target')) return { label: 'Target', emoji: '🎯' };
+    if (host.includes('ebay')) return { label: 'eBay', emoji: '🛍️' };
+    if (host.includes('bestbuy')) return { label: 'Best Buy', emoji: '🔌' };
+    return { label: host, emoji: '🔗' };
+  } catch {
+    return { label: 'Link', emoji: '🔗' };
+  }
+}
+
+export function ensureWishlist(view) {
+  return [...view.lists.values()].some((l) => l.listId === WISHLIST_ID);
+}
+
+export async function createWishlist(engine) {
+  return engine.mutate(EVENT_TYPES.LIST_UPSERT, {
+    listId: WISHLIST_ID,
+    name: 'Wish list',
+    emoji: '🎁',
+  });
+}
+
+export async function addWishItem(engine, { text, url }, { author } = {}) {
+  return engine.mutate(EVENT_TYPES.ITEM_UPSERT, {
+    itemId: generateId('w'),
+    listId: WISHLIST_ID,
+    text,
+    url: url || '',
+    qty: 1,
+    done: false,
+  }, { author });
+}
+
+export async function updateWishItem(engine, item, patch) {
+  return engine.mutate(EVENT_TYPES.ITEM_UPSERT, { ...item, ...patch });
+}
+
+export function wishItems(view) {
+  return [...view.items.values()]
+    .filter((i) => i.listId === WISHLIST_ID)
+    .sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
+}
 
 // ---- aisle detection (pure, unit-tested) ----
 

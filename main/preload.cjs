@@ -12,4 +12,5 @@ contextBridge.exposeInMainWorld('__electron', {
   oauthClientId: undefined, // desktop public client id lives in main only
   appVersion: () => ipcRenderer.invoke('app-version'),
   setAlwaysOnTop: (onTop) => ipcRenderer.send('set-always-on-top', onTop),
+  setWindowSize: (width, height) => ipcRenderer.send('set-window-size', { width, height }),
 });

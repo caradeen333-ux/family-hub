@@ -77,7 +77,7 @@ test('votes tally per option and re-vote replaces the member vote', () => {
   const poll = view.polls.get('p1');
   assert.equal(poll.poll.title, 'Dinner?');
   assert.equal(poll.votes.size, 3);
-  assert.equal(poll.votes.get('dad'), 'cook');
+  assert.equal(poll.votes.get('dad').optionId, 'cook');
   assert.equal(poll.tallies.get('cook'), 3);
   assert.equal(poll.tallies.get('takeout'), 0);
   assert.equal(isTie(poll.tallies, ['cook', 'takeout']), false);

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectAisle, aisleInfo, parseQty, splitInput, groupByAisle } from '../../js/shopping.js';
+import { detectAisle, aisleInfo, parseQty, splitInput, groupByAisle, detectStore, WISHLIST_ID } from '../../js/shopping.js';
 import { makeEvent, EVENT_TYPES } from '../../js/storage/log-format.js';
 import { mergeLogs } from '../../js/storage/merge.js';
 
@@ -69,6 +69,18 @@ test('merge: list + item lifecycle with tombstones', () => {
   assert.equal(view.items.size, 1);
   assert.equal(view.items.get('I1').done, true); // LWW edit
   assert.equal(view.items.has('I2'), false); // tombstoned
+});
+
+test('detectStore badges known retailers by domain', () => {
+  assert.deepEqual(detectStore('https://www.amazon.com/dp/B0ABC'), { label: 'Amazon', emoji: '📦' });
+  assert.deepEqual(detectStore('https://walmart.com/ip/123'), { label: 'Walmart', emoji: '✳️' });
+  assert.deepEqual(detectStore('https://www.target.com/p/x/-/A-123'), { label: 'Target', emoji: '🎯' });
+  assert.deepEqual(detectStore('https://example.com/thing'), { label: 'example.com', emoji: '🔗' });
+  assert.deepEqual(detectStore('not a url'), { label: 'Link', emoji: '🔗' });
+});
+
+test('wishlist id is a reserved constant', () => {
+  assert.equal(WISHLIST_ID, 'wishlist');
 });
 
 test('merge: deleting a list removes it', () => {

@@ -102,8 +102,8 @@ test('SYNC-03 re-vote replaces the member vote; tallies stay correct', async ({ 
     return { votes: Object.fromEntries(state.votes), tallies: Object.fromEntries(state.tallies) };
   });
 
-  expect(result.votes.mike).toBe('o1');
-  expect(result.votes.avery).toBe('o2'); // replaced, not doubled
+  expect(result.votes.mike.optionId).toBe('o1');
+  expect(result.votes.avery.optionId).toBe('o2'); // replaced, not doubled
   expect(result.tallies.o1).toBe(1);
   expect(result.tallies.o2).toBe(1);
 

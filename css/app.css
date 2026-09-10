@@ -578,14 +578,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .note-card:hover .note-actions { opacity: 1; }
 .note-actions .icon-btn { width: 36px; height: 36px; }
 .note-check {
-  width: 22px; height: 22px;
-  border-radius: 7px;
-  border: 1.5px solid var(--border-strong);
+  width: 24px; height: 24px;
+  border-radius: 8px;
+  border: 2px solid var(--border-strong);
+  background: var(--surface-2);
   display: grid; place-items: center;
   color: transparent;
   transition: all var(--dur) var(--ease);
   flex-shrink: 0;
   margin-top: 1px;
+}
+.note-check:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .note-check svg { width: 12px; height: 12px; }
 .note-card.done .note-check {
@@ -1146,6 +1151,136 @@ label textarea { resize: vertical; min-height: 56px; }
   border-radius: 50%;
   display: grid; place-items: center;
   font-size: 10px; font-weight: 750;
+}
+
+/* ---------- Slider toggles (physical switches) ---------- */
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 25px;
+  flex-shrink: 0;
+}
+.switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.switch .track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  transition: all var(--dur) var(--ease);
+  pointer-events: none;
+}
+.switch .knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition: all var(--dur) var(--ease);
+  pointer-events: none;
+}
+.switch input:checked + .track {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.switch input:checked + .track .knob {
+  left: 22px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text);
+  padding: 6px 0;
+  cursor: pointer;
+}
+.toggle-row > span:first-child { flex: 1; }
+
+/* ---------- Note modal helper + wish list ---------- */
+
+.note-format-hint {
+  margin: -4px 0 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.note-format-hint code, .note-format-hint b, .note-format-hint i, .note-format-hint a {
+  color: var(--text-2);
+}
+
+.wishlist-section {
+  margin-top: 22px;
+  border-top: 1px dashed var(--border-strong);
+  padding-top: 14px;
+}
+.wish-add-bar { margin-top: 8px; }
+.wishlist { display: grid; gap: 6px; }
+.wish-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.store-badge {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.wish-link {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cyan);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wish-link:hover { text-decoration: underline; }
+.wish-text { flex: 1; font-size: 14px; }
+.wish-empty {
+  font-size: 13px;
+  color: var(--text-3);
+  padding: 6px 4px 2px;
+}
+
+/* ---------- Vote notes ---------- */
+
+.poll-option-wrap { display: grid; gap: 4px; }
+.poll-note-input {
+  margin: 0 12px 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 11px;
+  transition: border-color var(--dur) var(--ease);
+}
+.poll-note-input::placeholder { color: var(--text-3); }
+.poll-note-input:focus { border-color: var(--accent); outline: none; }
+.voter-note {
+  margin: 0 14px 4px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  font-style: italic;
 }
 
 /* ---------- Pull-to-refresh ---------- */
