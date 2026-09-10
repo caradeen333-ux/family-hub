@@ -181,7 +181,10 @@ async function handleAuthRedirect() {
 function decodeIdToken(idToken) {
   if (!idToken) return {};
   try {
-    const payload = JSON.parse(atob(idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    // JWTs are unpadded base64url — atob needs padding added back
+    const b64 = idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64.padEnd(Math.ceil(b64.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded));
     return { sub: payload.sub, email: payload.email, name: payload.name };
   } catch {
     return {};
