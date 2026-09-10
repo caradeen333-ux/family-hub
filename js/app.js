@@ -143,7 +143,7 @@ async function handleAuthRedirect() {
 
   try {
     const tokens = await oauth.exchangeCode({
-      clientId: window.__electron?.oauthClientId ?? CONFIG.WEB_CLIENT_ID,
+      clientId: CONFIG.WEB_CLIENT_ID,
       code,
       redirectUri: saved.redirect,
       verifier: saved.verifier,
@@ -157,6 +157,9 @@ async function handleAuthRedirect() {
       expiresAt: tokens.expiresAt,
       ...(tokens.refreshToken ? { refreshToken: tokens.refreshToken } : {}),
     });
+    // The newly signed-in account becomes the ACTIVE account — otherwise a
+    // second sign-in (add-account flow) silently provisions for the old one.
+    setActiveEmail(profile.email);
     history.replaceState({}, '', location.pathname); // drop ?code= from URL
     return 'signed-in';
   } catch (err) {
@@ -245,6 +248,7 @@ function renderAll() {
   if (!engine.view) return;
   ui.setMembers(engine.view.members);
   ui.renderDinnerCard(engine.view, { activeMemberKey: engine.activeMemberKey() });
+  ui.renderDueToday(engine.view.chores, { members: engine.view.members, activeMemberKey: engine.activeMemberKey() });
   ui.renderEvents(calendarEvents, { containerId: 'myday-events', range });
   renderNotesPanel();
   ui.renderVotes(engine.view, { activeMemberKey: engine.activeMemberKey(), members: engine.view.members });
@@ -387,6 +391,7 @@ async function startSignIn() {
         expiresAt: clock.now() + (result.tokens.expires_in ?? 3600) * 1000,
         ...(result.tokens.refresh_token ? { refreshToken: result.tokens.refresh_token } : {}),
       });
+      setActiveEmail(profile.email); // the new account becomes active
       await bootAfterSignIn(parseInvite());
     } else {
       ui.toast(result?.error ?? 'Sign-in failed', 'error');
@@ -433,6 +438,19 @@ function wireAppEvents() {
   // Event form
   $('#btn-add-event').addEventListener('click', () => openEventForm());
   $('#form-event').addEventListener('submit', submitEventForm);
+  // Delete events created from Family Hub (clientKey-marked)
+  document.addEventListener('fh:event-delete', async (e) => {
+    const ev = e.detail;
+    if (await ui.confirmDialog(`Delete event "${ev.title}"? This removes it from Google Calendar.`)) {
+      try {
+        await calendar.deleteEvent(ev.calendarId, ev.id);
+        ui.toast('Event deleted');
+        await loadCalendar();
+      } catch (err) {
+        ui.toast('Could not delete event: ' + err.message, 'error');
+      }
+    }
+  });
 
   // Notes
   $('#quick-note-input').addEventListener('keydown', async (e) => {

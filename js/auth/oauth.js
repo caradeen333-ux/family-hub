@@ -92,14 +92,17 @@ function hasRefreshToken() {
 // ---- token endpoint calls ----
 
 // Exchange an authorization code. No client secret — public PKCE client.
+// code_verifier is sent ONLY for PKCE codes. The silent prompt=none flow
+// authorizes WITHOUT a challenge; sending an empty verifier there makes
+// Google reject the exchange with invalid_grant.
 export async function exchangeCode({ clientId, code, redirectUri, verifier }) {
   const body = new URLSearchParams({
     code,
     client_id: clientId,
     grant_type: 'authorization_code',
     redirect_uri: redirectUri,
-    code_verifier: verifier,
   });
+  if (verifier) body.set('code_verifier', verifier);
   const resp = await fetch(CONFIG.tokenEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

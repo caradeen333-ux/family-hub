@@ -945,6 +945,39 @@ label textarea { resize: vertical; min-height: 56px; }
 @keyframes toast-in  { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes toast-out { to   { opacity: 0; transform: translateY(10px) scale(0.96); } }
 
+/* ---------- Due today (My Day) ---------- */
+
+.due-today {
+  padding: 14px 15px;
+  margin-bottom: 14px;
+}
+.due-today .day-group-title { margin: 0 0 6px; }
+.due-today .chore-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.due-today .chore-row:last-child { border-bottom: none; }
+.due-today .note-check { margin-top: 0; }
+
+/* ---------- Poll voter chips ---------- */
+
+.poll-voters {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  padding: 0 14px 8px;
+  flex-wrap: wrap;
+}
+.voter-chip {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 10px; font-weight: 750;
+}
+
 /* ---------- Pull-to-refresh ---------- */
 
 .pull-indicator {

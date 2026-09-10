@@ -18,7 +18,7 @@ import { deriveMemberKey } from '../provisioning.js';
 import { DriveAdapter } from '../storage/drive-adapter.js';
 
 const FLUSH_INTERVAL_MS = 30 * 1000;
-const KV_DIRSTATE = 'dirState';
+const KV_DIRSTATE_LEGACY = 'dirState'; // pre-account-scoping key (read-only fallback)
 const KV_ETAGS = 'knownEtags';
 
 const listeners = new Set();
@@ -56,9 +56,20 @@ export class SyncEngine {
 
   // ---- boot ----
 
+  // dirState is per-ACCOUNT: on a shared device each person has their own
+  // folder registration + member key. Scoping by email means switching
+  // accounts can never flush one person's events as another person's author.
+  dirKey() {
+    const email = getActiveEmail();
+    return email ? `dirState:${email}` : KV_DIRSTATE_LEGACY;
+  }
+
   async init() {
     this.view = (await localDb.getKv('cachedView')) ?? null;
-    this.dirState = (await localDb.getKv(KV_DIRSTATE)) ?? null;
+    this.dirState =
+      (await localDb.getKv(this.dirKey())) ??
+      (await localDb.getKv(KV_DIRSTATE_LEGACY)) ?? // devices from before scoping
+      null;
     // Render cached state instantly (offline-first boot)
     if (this.view) this.emit({ type: 'view', view: this.view, cached: true });
     return this;
@@ -138,7 +149,9 @@ export class SyncEngine {
 
   async _flush() {
     if (!this.dirState) return { acknowledged: [], unacknowledged: [] };
-    const unconfirmed = await localDb.getUnconfirmed();
+    // Only this account's own events go into THIS account's log file. Events
+    // from another account on this device wait for that account's session.
+    const unconfirmed = (await localDb.getUnconfirmed()).filter((ev) => ev.author === this.dirState.memberKey);
     if (!unconfirmed.length) return { acknowledged: [], unacknowledged: [] };
 
     const result = await this.adapter.appendToMyLog({
@@ -169,10 +182,11 @@ export class SyncEngine {
     }, 5 * 60 * 1000);
   }
 
-  // Save directory state after provision/join
+  // Save directory state after provision/join — scoped to the active account
   async setDirState(dirState) {
     this.dirState = dirState;
-    await localDb.setKv(KV_DIRSTATE, dirState);
+    await localDb.setKv(this.dirKey(), dirState);
+    if (getActiveEmail()) await localDb.setKv(KV_DIRSTATE_LEGACY, dirState); // legacy fallback
   }
 }
 

@@ -240,7 +240,10 @@ export function renderEvents(events, { containerId, range }) {
   end.setHours(0, 0, 0, 0);
   end.setDate(end.getDate() + range);
 
-  const visible = events.filter((e) => !e.date || new Date(e.date) < end);
+  // Date-only strings parse as UTC midnight — that's the PREVIOUS day in
+  // western timezones (off-by-one: events hidden or shown a day early).
+  // 'T00:00:00' pins them to local midnight.
+  const visible = events.filter((e) => !e.date || new Date(e.date + 'T00:00:00') < end);
   const groups = new Map();
   for (const e of visible) {
     const key = e.date || 'undated';
@@ -285,6 +288,19 @@ function eventCard(ev) {
   body.appendChild(meta);
   card.append(color, body);
   if (ev.link) card.addEventListener('click', () => window.open(ev.link, '_blank'));
+
+  // Events created from Family Hub are deletable right here
+  if (ev.clientKey) {
+    const del = el('button', 'icon-btn', '🗑');
+    del.style.width = '36px';
+    del.style.height = '36px';
+    del.setAttribute('aria-label', 'Delete event');
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.dispatchEvent(new CustomEvent('fh:event-delete', { detail: ev }));
+    });
+    card.appendChild(del);
+  }
   return card;
 }
 
@@ -435,6 +451,46 @@ export function renderDinnerCard(view, { activeMemberKey }) {
   $('#dinner-card-slot').replaceChildren(dinnerCard(view, { activeMemberKey }));
 }
 
+// "Due today" chores section on My Day — the day's obligations next to the
+// day's events, one tap to check off
+export function renderDueToday(choresMap, { members, activeMemberKey }) {
+  const slot = $('#due-today-slot');
+  const today = todayKey();
+  const due = [...choresMap.values()].filter((c) => c.dueDate === today && !c.done);
+  if (!due.length) {
+    slot.replaceChildren();
+    return;
+  }
+  const card = el('div', 'card due-today');
+  card.appendChild(el('div', 'day-group-title', 'Due today'));
+  for (const chore of due) {
+    const row = el('div', 'chore-row');
+    const check = el('button', 'note-check');
+    check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>';
+    check.setAttribute('aria-label', 'Mark done');
+    check.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:chore-toggle', { detail: chore })));
+    row.appendChild(check);
+    row.appendChild(el('span', 'chore-title', chore.title));
+    if (chore.assignee) row.appendChild(memberChip(chore.assignee, members));
+    card.appendChild(row);
+  }
+  slot.replaceChildren(card);
+}
+
+// Yesterday's (or any past) dinner decision — small win, big family feel
+function lastDinnerWinner(view) {
+  const today = todayKey();
+  let latest = null;
+  for (const { poll, closedWinner } of view?.polls?.values() ?? []) {
+    if (poll.kind !== 'dinner' || closedWinner == null) continue;
+    if (poll.date && poll.date >= today) continue;
+    if (!latest || (poll.date ?? '') > (latest.poll.date ?? '')) latest = { poll, closedWinner };
+  }
+  return latest
+    ? { label: latest.poll.options?.find((o) => o.id === latest.closedWinner)?.label ?? null, date: latest.poll.date }
+    : null;
+}
+
 function newPollButton() {
   const btn = el('button', 'btn-secondary', '+ New poll');
   btn.style.marginBottom = '14px';
@@ -493,7 +549,10 @@ function dinnerCard(view, { activeMemberKey }) {
   const create = el('div', 'dinner-create');
   create.appendChild(el('span', 'empty-icon', '🍽️'));
   create.appendChild(el('div', 'dinner-title', "What's for dinner?"));
-  create.appendChild(el('div', 'empty-sub', 'No poll yet — start one in one tap.'));
+  const last = lastDinnerWinner(view);
+  create.appendChild(el('div', 'empty-sub', last && last.label
+    ? `Last decision: ${last.label}`
+    : 'No poll yet — start one in one tap.'));
   const btn = el('button', 'btn-primary', 'Start dinner vote');
   btn.style.marginTop = '14px';
   btn.addEventListener('click', () => {
@@ -523,6 +582,19 @@ function pollCard({ poll, tallies, votes, closedWinner }, { activeMemberKey, mem
     content.appendChild(el('span', 'poll-option-label', `${winner ? '🏆 ' : ''}${option.label}`));
     content.appendChild(el('span', 'poll-option-count', count ? `${count}` : ''));
     row.append(fill, content);
+    // Voter chips: who picked this option
+    const voters = [...votes.entries()].filter(([, oid]) => oid === option.id);
+    if (voters.length) {
+      const chipRow = el('div', 'poll-voters');
+      for (const [memberKey] of voters) {
+        const chip = el('span', 'voter-chip', (members.get(memberKey)?.name ?? memberKey)[0]?.toUpperCase() ?? '?');
+        chip.style.background = `color-mix(in srgb, ${memberColor(memberKey)} 20%, transparent)`;
+        chip.style.color = memberColor(memberKey);
+        chip.title = members.get(memberKey)?.name ?? memberKey;
+        chipRow.appendChild(chip);
+      }
+      row.appendChild(chipRow);
+    }
     if (!closed && poll.kind !== 'dinner') {
       row.style.cursor = 'pointer';
       row.addEventListener('click', () => {

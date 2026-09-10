@@ -97,6 +97,72 @@ test('POL-07 account switcher lists and switches accounts', async ({ page }) => 
   await expect(page.locator('#account-avatar')).toHaveText('A');
 });
 
+test('POL-09 due-today chores appear on My Day with one-tap completion', async ({ page }) => {
+  await boot(page);
+  // Same local-date computation as todayKey() — not UTC
+  const todayStr = await page.evaluate(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+  await page.evaluate(async ({ todayStr }) => {
+    await window.__fhTest.chores.addChore(window.__fhTest.engine, { title: 'water plants', dueDate: todayStr, assignee: 'mike' });
+    await window.__fhTest.chores.addChore(window.__fhTest.engine, { title: 'future thing', dueDate: '2030-01-01', assignee: 'mike' });
+  }, { todayStr });
+  await expect(page.locator('#due-today-slot')).toContainText('water plants');
+  await expect(page.locator('#due-today-slot')).not.toContainText('future thing');
+  // One tap completes it — disappears from Due today
+  await page.click('#due-today-slot .note-check');
+  await expect(page.locator('#due-today-slot')).not.toContainText('water plants');
+});
+
+test('POL-10 poll options show voter chips', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async () => {
+    const e = window.__fhTest.engine;
+    const poll = await window.__fhTest.votes.createPoll(e, { title: 'Chips test', kind: 'general', options: ['A', 'B'], author: 'mike' });
+    await window.__fhTest.votes.castVote(e, poll.payload.pollId, 'o1', 'mike');
+    await window.__fhTest.votes.castVote(e, poll.payload.pollId, 'o1', 'avery');
+  });
+  await page.click('[data-tab="votes"]');
+  const firstOption = page.locator('.poll-option').first();
+  await expect(firstOption.locator('.voter-chip')).toHaveCount(2);
+});
+
+test('POL-11 account switch scopes dirState — mutations authored by the active account', async ({ page }) => {
+  await boot(page);
+  // Seed a second account AND its own scoped dirState (avery joined)
+  await page.evaluate(() => {
+    const accounts = JSON.parse(localStorage.getItem('fh_accounts') ?? '{}');
+    accounts['avery@test.local'] = { sub: 'xyz', name: 'Avery', email: 'avery@test.local', accessToken: 'AT-2', refreshToken: 'RT-2', expiresAt: Date.now() + 3600000 };
+    localStorage.setItem('fh_accounts', JSON.stringify(accounts));
+  });
+  const seedAveryDir = async () => page.evaluate(() => new Promise((res) => {
+    const req = indexedDB.open('family-hub-local', 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+    };
+    req.onsuccess = () => {
+      const t = req.result.transaction('kv', 'readwrite');
+      t.objectStore('kv').put({ folderId: 'FOLDER', dirFileId: 'DIRFILE', memberKey: 'avery', name: 'Avery', email: 'avery@test.local' }, 'dirState:avery@test.local');
+      t.oncomplete = res;
+    };
+  }));
+  await seedAveryDir();
+
+  await page.click('#btn-settings');
+  await page.click('#auth-area .btn-xs'); // Switch to Avery
+  await page.waitForFunction(() => localStorage.getItem('fh_activeAccount') === 'avery@test.local');
+  await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });
+
+  // A note authored under Avery's session must carry Avery's key
+  await page.evaluate(async () => {
+    await window.__fhTest.notes.addNote(window.__fhTest.engine, { text: 'avery wrote this' });
+  });
+  const author = await page.evaluate(async () => (await window.__fhTest.localDb.getLocalEvents()).find((e) => e.payload?.text === 'avery wrote this')?.author);
+  expect(author).toBe('avery');
+});
+
 test('POL-08 export downloads a JSON snapshot', async ({ page }) => {
   await boot(page);
   await page.evaluate(async () => {

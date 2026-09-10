@@ -79,6 +79,8 @@ export function normalizeEvent(ev, person) {
     link: ev.htmlLink || '',
     status: ev.status,
     recurringEventId: ev.recurringEventId || null,
+    // Set on events created from Family Hub — enables delete/dupe-guard
+    clientKey: ev.extendedProperties?.shared?.[CLIENT_KEY_PROP] ?? null,
   };
 }
 
@@ -107,10 +109,11 @@ function eventBody({ title, date, startTime, endTime, allDay, location, descript
 }
 
 // Check-before-create: did a previous attempt with this clientKey already
-// land? (offline replay idempotency)
+// land? (offline replay idempotency). Events store the key in SHARED
+// extendedProperties — the query must use the matching parameter.
 export async function findEventByClientKey(calendarId, clientKey) {
   const url = new URL(`${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events`);
-  url.searchParams.set('privateExtendedProperty', `${CLIENT_KEY_PROP}=${clientKey}`);
+  url.searchParams.set('sharedExtendedProperty', `${CLIENT_KEY_PROP}=${clientKey}`);
   url.searchParams.set('maxResults', '1');
   const resp = await fetchWithAuth(url);
   if (!resp.ok) throw new Error(`Event lookup failed (${resp.status})`);

@@ -106,12 +106,14 @@ async function startLoopbackOauth() {
         if (error) throw new Error(error);
         const code = url.searchParams.get('code');
 
+        // The redirect_uri MUST match the authorize request exactly (port
+        // included) — a bare 'http://localhost' here is an invalid_grant.
+        const callbackUrl = `http://localhost:${server.address().port}/callback`;
         const body = new URLSearchParams({
           code,
           client_id: CLIENT_ID,
           grant_type: 'authorization_code',
-          redirect_uri: 'http://localhost', // loopback — Google accepts this form
-          scope: SCOPES,
+          redirect_uri: callbackUrl,
         });
         // Public client: no secret. PKCE isn't used for the Desktop-app-type
         // client; Google returns tokens directly.
