@@ -122,10 +122,10 @@ export async function exchangeGisCode({ clientId, code, redirectUri }) {
     grant_type: 'authorization_code',
     redirect_uri: redirectUri,
   });
-  const { tokenFetchWithDpop } = await import('./dpop.js');
-  const resp = await tokenFetchWithDpop(body, {
-    fetchFn: (url, init) => fetch(url, init),
-  });
+  // If a relay endpoint is configured (local dev / production worker), the
+  // exchange goes through it — the relay holds the secret server-side.
+  const { tokenEndpointForWeb } = await import('./relay.js');
+  const resp = await tokenEndpointForWeb(body);
   return parseTokenResponse(resp);
 }
 
@@ -148,12 +148,10 @@ export async function refreshGrant({ clientId, refreshToken }) {
     client_id: clientId,
     refresh_token: refreshToken,
   });
-  // Web path: attach a DPoP proof (same key as the exchange) — Google's
-  // secretless flow binds tokens to the key
-  const { tokenFetchWithDpop } = await import('./dpop.js');
-  const resp = await tokenFetchWithDpop(body, {
-    fetchFn: (url, init) => fetch(url, init),
-  });
+  // Web path: through the relay when configured (secret server-side),
+  // otherwise direct with a DPoP proof
+  const { tokenEndpointForWeb } = await import('./relay.js');
+  const resp = await tokenEndpointForWeb(body);
   return parseTokenResponse(resp);
 }
 

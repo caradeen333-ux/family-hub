@@ -5,3 +5,4 @@ site/
 test-results/
 playwright-report/
 main/secrets.local.json
+scripts/relay-secrets.local.json

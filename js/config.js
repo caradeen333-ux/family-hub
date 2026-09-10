@@ -28,6 +28,14 @@ export const CONFIG = {
   // Injectable so tests can page.route a mock
   tokenEndpoint: 'https://oauth2.googleapis.com/token',
 
+  // Exchange relay (server-side secret holder). Local dev: append ?relay=1
+  // to the test origin. Production: the Cloudflare Worker URL — this is the
+  // one piece of server infrastructure the product needs.
+  relayEndpoint:
+    isLocal && typeof location !== 'undefined' && new URLSearchParams(location.search).has('relay')
+      ? 'http://127.0.0.1:4791/exchange'
+      : null,
+
   // === App ===
   refreshInterval: 5 * 60 * 1000,
   defaultTab: 'myday',
