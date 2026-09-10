@@ -22,8 +22,18 @@ export function deriveMemberKey(email) {
   return cleaned;
 }
 
-// Build the invite link a first member shares with the family
-export function buildInviteLink({ folderId, dirFileId, origin = window.location?.origin ?? '' }) {
+// Build the invite link a first member shares with the family.
+// CRITICAL: the link must ALWAYS use the public web origin — never the
+// app's own origin. (Electron runs on http://127.0.0.1:41073 and the
+// first real invite embedded that dead local address.)
+export function inviteOrigin() {
+  if (typeof window !== 'undefined' && window.__electron) {
+    return 'https://caradeen333-ux.github.io/family-hub';
+  }
+  return typeof window !== 'undefined' ? window.location.origin : 'https://caradeen333-ux.github.io/family-hub';
+}
+
+export function buildInviteLink({ folderId, dirFileId, origin = inviteOrigin() }) {
   const payload = JSON.stringify({ v: 1, folderId, dirFileId });
   const encoded = btoa(unescape(encodeURIComponent(payload)))
     .replace(/\+/g, '-')

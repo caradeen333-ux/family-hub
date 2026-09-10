@@ -1146,23 +1146,29 @@ label textarea { resize: vertical; min-height: 56px; }
 
 /* ---------- Meal card collapse + schedule selector ---------- */
 
+#dinner-card-slot { margin-bottom: 14px; }
 .meal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  cursor: pointer;
 }
 .meal-collapse-btn {
-  width: 30px;
+  width: 40px;
   height: 30px;
-  border-radius: 9px;
-  color: var(--text-3);
-  font-size: 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
   display: grid;
   place-items: center;
   flex-shrink: 0;
+  transition: all var(--dur) var(--ease);
 }
-.meal-collapse-btn:hover { background: var(--surface-2); color: var(--text); }
+.meal-collapse-btn:hover { border-color: var(--accent); color: var(--accent); }
 .meal-collapsed .meal-body { display: none; }
 .meal-collapsed { padding: 12px 16px; }
 .meal-collapsed .dinner-kicker { margin-bottom: 0; }
@@ -1171,7 +1177,7 @@ label textarea { resize: vertical; min-height: 56px; }
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 /* ---------- Due today (My Day) ---------- */
