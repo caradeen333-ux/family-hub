@@ -750,17 +750,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   z-index: 20;
 }
 .tab {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 8px 4px 6px;
+  gap: 5px;
+  padding: 8px 4px 10px;
   border-radius: 14px;
   color: var(--text-3);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 650;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
   transition: color var(--dur) var(--ease), background var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 .tab:hover { color: var(--text-2); }
@@ -768,10 +770,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .tab.active::after {
   content: "";
   position: absolute;
+  bottom: 1px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 4px; height: 4px;
   border-radius: 50%;
   background: var(--accent);
-  transform: translateY(26px);
 }
 .tab.active svg { filter: drop-shadow(0 0 6px var(--accent-glow)); }
 

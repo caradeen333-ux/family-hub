@@ -68,9 +68,9 @@ export function setOffline(offline) {
 
 export function updateHeaderDate() {
   const d = new Date(clock.now());
-  $('#header-date').textContent = d.toLocaleDateString(undefined, {
-    weekday: 'long', month: 'short', day: 'numeric',
-  });
+  const date = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+  const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  $('#header-date').textContent = `${date} · ${time}`;
 }
 
 export function applyTheme() {

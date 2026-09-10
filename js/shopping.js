@@ -114,7 +114,8 @@ const AISLE_KEYWORDS = {
 // their ingredients ("tomato sauce" → Pantry, not Produce; "chicken broth" →
 // Pantry, not Meat; "chocolate milk" → Dairy, not Pantry). Display order
 // (AISLES) is separate.
-const DETECTION_ORDER = ['frozen', 'dairy', 'pantry', 'pharmacy', 'household', 'meat', 'bakery', 'produce'];
+// Bakery before meat: "hamburger buns" must win over the "burger" keyword
+const DETECTION_ORDER = ['frozen', 'dairy', 'pantry', 'pharmacy', 'household', 'bakery', 'meat', 'produce'];
 
 export function detectAisle(text) {
   const t = ` ${text.toLowerCase()} `;
