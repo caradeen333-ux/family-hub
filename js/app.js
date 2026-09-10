@@ -194,7 +194,9 @@ function decodeIdToken(idToken) {
 // Desktop-type clients often return NO id_token — fall back to the userinfo
 // endpoint. NEVER store an account without an email (the 'undefined'-key bug).
 async function profileFromTokens(tokens) {
-  const fromId = decodeIdToken(tokens.id_token);
+  // Web flow uses camelCase (idToken), Electron's raw Google JSON is
+  // snake_case (id_token) — accept both
+  const fromId = decodeIdToken(tokens.id_token ?? tokens.idToken);
   if (fromId.email) return fromId;
   const accessToken = tokens.access_token ?? tokens.accessToken;
   const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {

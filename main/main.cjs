@@ -55,6 +55,25 @@ const MIME = {
   '.webmanifest': 'application/manifest+json',
 };
 
+// The bundle origin must be STABLE across launches — localStorage (tokens)
+// is keyed by origin including the port. Preferred port order: fixed 41073,
+// then whatever port this profile has used before (persisted in prefs.json),
+// then a fresh random one that gets persisted for next time.
+function readPrefs() {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'prefs.json'), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function savePrefs(patch) {
+  try {
+    const prefs = { ...readPrefs(), ...patch };
+    fs.writeFileSync(path.join(app.getPath('userData'), 'prefs.json'), JSON.stringify(prefs));
+  } catch { /* ignore */ }
+}
+
 function startBundleServer() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
@@ -77,22 +96,33 @@ function startBundleServer() {
   });
 
   return new Promise((resolve) => {
-    const onError = (err) => {
-      if (err.code === 'EADDRINUSE') {
-        // Fixed port taken — fall back to an ephemeral one (origin shifts, but
-        // only if something else grabbed the port)
-        server.listen(0, '127.0.0.1');
-      } else {
-        console.error('Family Hub bundle server failed:', err.message);
-        app.quit();
-      }
+    const prefs = readPrefs();
+    const candidates = [...new Set([prefs.bundlePort ?? APP_PORT, APP_PORT])];
+    let index = 0;
+
+    const tryNext = () => {
+      const port = candidates[index++] ?? 0; // 0 = random, persisted afterwards
+      const onError = (err) => {
+        server.removeListener('error', onError);
+        if (err.code === 'EADDRINUSE' && index <= candidates.length) {
+          tryNext();
+        } else if (err.code === 'EADDRINUSE') {
+          tryNext(); // random fallback never conflicts
+        } else {
+          console.error('Family Hub bundle server failed:', err.message);
+          app.quit();
+        }
+      };
+      server.once('error', onError);
+      server.listen(port, '127.0.0.1', () => {
+        server.removeListener('error', onError);
+        const actual = server.address().port;
+        savePrefs({ bundlePort: actual }); // remember for next launch
+        APP_URL = `http://127.0.0.1:${actual}/index.html`;
+        resolve();
+      });
     };
-    server.once('error', onError);
-    server.listen(APP_PORT, '127.0.0.1', () => {
-      server.removeListener('error', onError);
-      APP_URL = `http://127.0.0.1:${server.address().port}/index.html`;
-      resolve();
-    });
+    tryNext();
   });
 }
 
