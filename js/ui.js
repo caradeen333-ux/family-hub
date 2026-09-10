@@ -1087,7 +1087,7 @@ export async function busy(btn, promise, { label } = {}) {
 
 // ---------- Auth screens ----------
 
-export function showAuthScreen({ error } = {}) {
+export function showAuthScreen({ error, invite } = {}) {
   $('#app').classList.add('hidden');
   $('#screen-provision').classList.add('hidden');
   const screen = $('#screen-auth');
@@ -1098,6 +1098,16 @@ export function showAuthScreen({ error } = {}) {
     err.classList.remove('hidden');
   } else {
     err.classList.add('hidden');
+  }
+  // Invite landing: explain what's happening before the sign-in button
+  const banner = $('#invite-banner');
+  const standard = $('#auth-standard');
+  if (invite) {
+    banner.classList.remove('hidden');
+    standard.classList.add('hidden');
+  } else {
+    banner.classList.add('hidden');
+    standard.classList.remove('hidden');
   }
 }
 

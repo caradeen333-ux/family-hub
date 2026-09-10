@@ -89,13 +89,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (redirectResult === 'signed-in') {
       await bootAfterSignIn(invite);
     } else {
-      ui.showAuthScreen({ error: redirectResult === 'error' ? 'Sign-in failed. Please try again.' : undefined });
+      ui.showAuthScreen({
+        error: redirectResult === 'error' ? 'Sign-in failed. Please try again.' : undefined,
+        invite: invite ?? undefined, // invite landing context on the auth screen
+      });
     }
   }
 
   wireAppEvents();
   startProactiveRefresh();
+  announceUpdate();
 });
+
+// Update notice: first boot of a new version → friendly toast. The FAQ
+// carries the guarantee: updates never touch tokens or local data.
+function announceUpdate() {
+  const version = window.APP_VERSION;
+  if (!version) return;
+  try {
+    const last = localStorage.getItem('fh_last_version');
+    if (last !== version) {
+      localStorage.setItem('fh_last_version', version);
+      ui.toast(`Updated to v${version} 🎉 — you stay signed in`, 'success');
+    }
+  } catch { /* private mode */ }
+}
 
 async function afterSync() {
   if (!engine.dirState) {
@@ -370,6 +388,11 @@ function wireStaticControls() {
   $('#btn-settings').addEventListener('click', () => {
     renderAll();
     ui.openModal('modal-settings');
+  });
+  $('#btn-help').addEventListener('click', () => ui.openModal('modal-help'));
+  $('#invite-faq-link')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    ui.openModal('modal-help');
   });
   $('#btn-account').addEventListener('click', () => {
     renderAll();

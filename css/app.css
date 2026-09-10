@@ -1159,6 +1159,28 @@ label textarea { resize: vertical; min-height: 56px; }
   font-size: 10px; font-weight: 750;
 }
 
+/* ---------- Invite banner + FAQ ---------- */
+
+.invite-banner { text-align: left; margin-bottom: 18px; }
+.invite-banner-title {
+  font-size: 16px;
+  font-weight: 750;
+  margin-bottom: 10px;
+}
+.invite-steps {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.invite-steps li { margin: 4px 0; }
+.invite-banner .auth-fine a { color: var(--cyan); }
+
+.faq-body { display: grid; gap: 16px; }
+.faq-item h3 { margin: 0 0 4px; font-size: 14.5px; font-weight: 700; }
+.faq-item p { margin: 0; font-size: 13.5px; color: var(--text-2); line-height: 1.55; }
+.faq-item p strong { color: var(--text); }
+
 /* ---------- Slider toggles (physical switches) ---------- */
 
 .switch {
