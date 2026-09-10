@@ -78,6 +78,8 @@ export function buildView(events, { now }) {
   const pollClosed = new Map(); // pollId → winner (applied after the loop)
   const config = new Map();
   const members = new Map();
+  const lists = new Map(); // listId → {listId, name, emoji, author, ts}
+  const items = new Map(); // itemId → {itemId, listId, text, qty, done, author, ts}
 
   for (const ev of keyWinners.values()) {
     switch (ev.type) {
@@ -115,6 +117,19 @@ export function buildView(events, { now }) {
       case 'member.joined':
         members.set(ev.payload.key, ev.payload);
         break;
+      case 'list.upsert':
+        lists.set(ev.payload.listId, { ...ev.payload, author: ev.author, ts: ev.ts });
+        break;
+      case 'list.tombstone':
+        lists.delete(ev.payload.listId);
+        // items in a deleted list are unreachable anyway — tombstones below
+        break;
+      case 'item.upsert':
+        items.set(ev.payload.itemId, { ...ev.payload, author: ev.author, ts: ev.ts });
+        break;
+      case 'item.tombstone':
+        items.delete(ev.payload.itemId);
+        break;
     }
   }
 
@@ -135,7 +150,7 @@ export function buildView(events, { now }) {
     });
   }
 
-  return { notes, chores, polls, config, members, now };
+  return { notes, chores, polls, config, members, lists, items, now };
 }
 
 // Convenience: merge full parsed logs into a view. events are flat arrays of

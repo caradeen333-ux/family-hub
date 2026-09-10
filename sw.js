@@ -15,6 +15,7 @@ const APP_SHELL = [
   './js/notes.js',
   './js/votes.js',
   './js/chores.js',
+  './js/shopping.js',
   './js/provisioning.js',
   './js/auth/oauth.js',
   './js/auth/token.js',

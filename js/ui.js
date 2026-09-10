@@ -7,6 +7,7 @@ import { isPollOpen, leadingOptions, dinnerPollForToday, todayKey } from './vote
 import { formatTime } from './calendar.js';
 import { renderMarkdown, wrapSelection, toggleLinePrefix } from './format.js';
 import { getAccounts, getActiveEmail } from './auth/token-store.js';
+import { sortedLists, itemsInList, groupByAisle, LIST_EMOJIS, DEFAULT_LIST_EMOJI, aisleInfo } from './shopping.js';
 import { clock } from './testing/clock.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -25,14 +26,25 @@ export function setMembers(members) {
 
 // ---------- Toasts ----------
 
-export function toast(message, type = '') {
+export function toast(message, type = '', { actionLabel, onAction } = {}) {
   const container = $('#toast-container');
   const node = el('div', `toast ${type}`, message);
-  container.appendChild(node);
-  setTimeout(() => {
+  let timer;
+  const dismiss = () => {
+    clearTimeout(timer);
     node.classList.add('leaving');
     setTimeout(() => node.remove(), 260);
-  }, 2600);
+  };
+  if (actionLabel && onAction) {
+    const btn = el('button', 'toast-action', actionLabel);
+    btn.addEventListener('click', () => {
+      onAction();
+      dismiss();
+    });
+    node.appendChild(btn);
+  }
+  container.appendChild(node);
+  timer = setTimeout(dismiss, actionLabel ? 5000 : 2600);
 }
 
 // ---------- Sync status ----------
@@ -671,6 +683,147 @@ function choreDueBadge(chore) {
   else if (!chore.done) badge.textContent = `Due ${chore.dueDate}`;
   if (!chore.done && chore.dueDate <= today) badge.classList.add('overdue');
   return badge;
+}
+
+// ---------- Shopping ----------
+
+let activeListId = null; // module-level: survives re-renders
+
+// The app layer needs to know which list receives new items
+export function getActiveShoppingListId() {
+  return activeListId;
+}
+
+export function setActiveShoppingListId(id) {
+  activeListId = id;
+}
+
+export function renderShopping(view, { activeMemberKey }) {
+  const switcher = $('#list-switcher');
+  const listEl = $('#shopping-list');
+
+  const lists = sortedLists(view);
+  if (!lists.length) {
+    switcher.replaceChildren();
+    $('#shopping-progress').classList.add('hidden');
+    listEl.replaceChildren(emptyState('🛒', 'No lists yet', 'Start with Groceries — then add Costco, pharmacy runs, whatever you shop for.'));
+    $('#btn-clear-checked').classList.add('hidden');
+    return;
+  }
+
+  // Ensure the active list still exists (deleted while active, fresh boot)
+  if (!lists.some((l) => l.listId === activeListId)) {
+    activeListId = lists[0].listId;
+  }
+  const active = lists.find((l) => l.listId === activeListId);
+
+  // List switcher chips
+  switcher.replaceChildren(...lists.map((list) => {
+    const chip = el('button', `list-chip ${list.listId === activeListId ? 'active' : ''}`, `${list.emoji ?? DEFAULT_LIST_EMOJI} ${list.name}`);
+    chip.addEventListener('click', () => {
+      activeListId = list.listId;
+      document.dispatchEvent(new CustomEvent('fh:shopping-render'));
+    });
+    return chip;
+  }));
+  const plus = el('button', 'list-chip list-chip-add', '＋');
+  plus.setAttribute('aria-label', 'New list');
+  plus.addEventListener('click', () => openListModal());
+  switcher.appendChild(plus);
+
+  // Progress (checkout feel)
+  const items = itemsInList(view, activeListId);
+  const done = items.filter((i) => i.done);
+  const progress = $('#shopping-progress');
+  progress.classList.remove('hidden');
+  const fill = $('#shopping-progress-fill');
+  fill.style.width = `${items.length ? Math.round((done.length / items.length) * 100) : 0}%`;
+  $('#shopping-progress-label').textContent = items.length
+    ? done.length === items.length ? 'All set 🎉' : `${items.length - done.length} left · ${done.length} done`
+    : 'Nothing yet';
+
+  // Aisle-grouped active items
+  const activeItems = items.filter((i) => !i.done).sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
+  const groups = groupByAisle(activeItems);
+  const frag = document.createDocumentFragment();
+  if (!groups.length) {
+    frag.appendChild(emptyState('🛒', 'List is empty', 'Type an item below — or paste a whole list at once: milk, eggs, bread'));
+  }
+  for (const { aisle, items: groupItems } of groups) {
+    frag.appendChild(el('div', 'aisle-head', `${aisle.emoji} ${aisle.label}`));
+    for (const item of groupItems) frag.appendChild(shopItemRow(item));
+  }
+
+  // Done section (collapsible)
+  if (done.length) {
+    const section = el('div', 'done-section');
+    const head = el('button', 'shop-done-toggle', `Done (${done.length})`);
+    const body = el('div', `done-body ${localStorage.getItem('fh_shop_done_collapsed') === '1' ? 'collapsed' : ''}`);
+    head.appendChild(el('span', 'done-caret', localStorage.getItem('fh_shop_done_collapsed') === '1' ? '▸' : '▾'));
+    for (const item of done.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0))) body.appendChild(shopItemRow(item, { done: true }));
+    head.addEventListener('click', () => {
+      const collapsed = body.classList.toggle('collapsed');
+      head.querySelector('.done-caret').textContent = collapsed ? '▸' : '▾';
+      localStorage.setItem('fh_shop_done_collapsed', collapsed ? '1' : '0');
+    });
+    section.append(head, body);
+    frag.appendChild(section);
+  }
+  listEl.replaceChildren(frag);
+
+  $('#btn-clear-checked').classList.toggle('hidden', !done.length);
+}
+
+function shopItemRow(item, { done = false } = {}) {
+  const row = el('div', `shop-item ${done ? 'done' : ''}`);
+  const check = el('button', 'note-check');
+  check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>';
+  check.setAttribute('aria-label', done ? 'Put back on list' : 'Check off');
+  check.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:item-toggle', { detail: item })));
+
+  const main = el('span', 'shop-item-main');
+  if ((item.qty ?? 1) > 1) main.appendChild(el('span', 'qty-badge', `${item.qty}×`));
+  main.appendChild(el('span', 'shop-text', item.text));
+
+  const actions = el('span', 'shop-item-actions');
+  const del = el('button', 'icon-btn', '🗑');
+  del.style.width = '32px';
+  del.style.height = '32px';
+  del.setAttribute('aria-label', 'Remove item');
+  del.addEventListener('click', () => document.dispatchEvent(new CustomEvent('fh:item-delete', { detail: item })));
+  actions.appendChild(del);
+
+  row.append(check, main, actions);
+  // Tap the row = toggle; tap the text = edit
+  row.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    document.dispatchEvent(new CustomEvent('fh:item-toggle', { detail: item }));
+  });
+  row.querySelector('.shop-text').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.dispatchEvent(new CustomEvent('fh:item-edit', { detail: item }));
+  });
+  return row;
+}
+
+export function openListModal() {
+  const form = $('#form-list');
+  form.reset();
+  form.name.value = '';
+  form.emoji.value = DEFAULT_LIST_EMOJI;
+  const picker = $('#emoji-picker');
+  picker.replaceChildren(...LIST_EMOJIS.map((emoji) => {
+    const btn = el('button', `emoji-option ${emoji === DEFAULT_LIST_EMOJI ? 'active' : ''}`, emoji);
+    btn.type = 'button';
+    btn.setAttribute('role', 'radio');
+    btn.addEventListener('click', () => {
+      picker.querySelectorAll('.emoji-option').forEach((b) => b.classList.toggle('active', b === btn));
+      form.emoji.value = emoji;
+    });
+    return btn;
+  }));
+  openModal('modal-list');
+  form.name.focus();
 }
 
 // ---------- Settings ----------

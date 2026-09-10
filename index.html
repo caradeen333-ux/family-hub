@@ -134,6 +134,24 @@
       </div>
       <div id="chores-list" class="chores-list"></div>
     </section>
+
+    <!-- ===== Shopping ===== -->
+    <section id="panel-shopping" class="panel" role="tabpanel">
+      <div class="list-switcher" id="list-switcher"></div>
+      <div class="shopping-progress" id="shopping-progress">
+        <div class="progress-track"><div class="progress-fill" id="shopping-progress-fill"></div></div>
+        <span class="progress-label" id="shopping-progress-label"></span>
+      </div>
+      <div class="quick-add-bar">
+        <input id="shop-input" type="text" placeholder="Add items… (2x milk, eggs, bread)" aria-label="Shopping item">
+        <button id="btn-add-item" class="btn-primary btn-sm">Add</button>
+      </div>
+      <div id="shopping-list" class="shopping-list"></div>
+      <div class="shopping-footer">
+        <button id="btn-clear-checked" class="btn-secondary btn-sm hidden">Clear checked</button>
+        <button id="btn-new-list" class="btn-secondary btn-sm">＋ New list</button>
+      </div>
+    </section>
   </main>
 
   <!-- ===== BOTTOM TAB BAR ===== -->
@@ -153,6 +171,10 @@
     <button role="tab" data-tab="chores"  class="tab" aria-selected="false" aria-controls="panel-chores">
       <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>
       <span>Chores</span>
+    </button>
+    <button role="tab" data-tab="shopping" class="tab" aria-selected="false" aria-controls="panel-shopping">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.6"/><circle cx="17" cy="20" r="1.6"/><path d="M2.5 3.5h2.2l2.6 12h10.4l2.3-8.5H6"/></svg>
+      <span>Shopping</span>
     </button>
   </nav>
 
@@ -236,6 +258,25 @@
       <div class="form-actions">
         <button type="button" class="btn-cancel" data-close="modal-note">Cancel</button>
         <button type="submit" class="btn-primary">Save Note</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Shopping list form (new list) -->
+<div id="modal-list" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>New List</h2>
+      <button class="modal-close" data-close="modal-list" aria-label="Close">&times;</button>
+    </div>
+    <form id="form-list">
+      <label>List name <input type="text" name="name" required placeholder="e.g. Costco run"></label>
+      <div class="emoji-picker" id="emoji-picker" role="radiogroup" aria-label="List emoji"></div>
+      <input type="hidden" name="emoji" value="🛒">
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" data-close="modal-list">Cancel</button>
+        <button type="submit" class="btn-primary">Create List</button>
       </div>
     </form>
   </div>

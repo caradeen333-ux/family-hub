@@ -23,6 +23,7 @@ import * as calendar from './calendar.js';
 import * as notesMod from './notes.js';
 import * as votesMod from './votes.js';
 import * as choresMod from './chores.js';
+import * as shoppingMod from './shopping.js';
 import * as ui from './ui.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -38,6 +39,11 @@ function renderNotesPanel() {
   if (!engine.view) return;
   ui.renderNotes(engine.view.notes, notesFilter);
   ui.renderNoteFilters(engine.view.notes, notesFilter);
+}
+
+function renderShoppingPanel() {
+  if (!engine.view) return;
+  ui.renderShopping(engine.view, { activeMemberKey: engine.activeMemberKey() });
 }
 
 // ---------- boot ----------
@@ -253,6 +259,7 @@ function renderAll() {
   renderNotesPanel();
   ui.renderVotes(engine.view, { activeMemberKey: engine.activeMemberKey(), members: engine.view.members });
   ui.renderChores(engine.view.chores, { activeMemberKey: engine.activeMemberKey(), members: engine.view.members });
+  renderShoppingPanel();
   ui.renderSettings({ members: engine.view.members, dirState: engine.dirState, account: getActiveAccount() });
   ui.renderAccount(getActiveAccount());
 }
@@ -414,7 +421,15 @@ function wireAppEvents() {
   // Tab bar: click + arrow-key navigation (roving tabindex)
   const tabs = [...document.querySelectorAll('.tab')];
   tabs.forEach((t) => {
-    t.addEventListener('click', () => ui.switchTab(t.dataset.tab));
+    t.addEventListener('click', () => {
+      ui.switchTab(t.dataset.tab);
+      // First visit to Shopping gets a ready-made Groceries list — once.
+      // (Not in renderShoppingPanel: renders happen before the view updates,
+      // which would create duplicate lists.)
+      if (t.dataset.tab === 'shopping' && engine.view && engine.view.lists.size === 0) {
+        shoppingMod.createList(engine, { name: 'Groceries' }).catch(() => {});
+      }
+    });
     t.addEventListener('keydown', (e) => {
       const idx = tabs.indexOf(t);
       let next = null;
@@ -593,6 +608,78 @@ function wireAppEvents() {
       await choresMod.deleteChore(engine, e.detail.choreId);
       ui.toast('Chore deleted');
     }
+  });
+
+  // Shopping
+  const addShopItems = async (raw) => {
+    const entries = shoppingMod.splitInput(raw);
+    if (!entries.length) return;
+    let listId = ui.getActiveShoppingListId();
+    if (!listId && engine.view.lists.size === 0) {
+      await shoppingMod.createList(engine, { name: 'Groceries' });
+    }
+    listId = ui.getActiveShoppingListId() ?? [...engine.view.lists.values()][0]?.listId;
+    if (!listId) return;
+    await shoppingMod.addItems(engine, listId, entries, { author: engine.activeMemberKey() });
+    ui.toast(entries.length > 1 ? `Added ${entries.length} items` : 'Added to list', 'success');
+  };
+  $('#shop-input').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const input = e.target;
+    const raw = input.value;
+    input.value = '';
+    addShopItems(raw);
+  });
+  $('#btn-add-item').addEventListener('click', async () => {
+    const input = $('#shop-input');
+    const raw = input.value;
+    input.value = '';
+    await addShopItems(raw);
+  });
+  document.addEventListener('fh:shopping-render', () => renderShoppingPanel());
+  document.addEventListener('fh:item-toggle', async (e) => {
+    await shoppingMod.toggleItem(engine, e.detail);
+  });
+  document.addEventListener('fh:item-delete', async (e) => {
+    await shoppingMod.deleteItem(engine, e.detail);
+    ui.toast('Removed');
+  });
+  document.addEventListener('fh:item-edit', async (e) => {
+    const item = e.detail;
+    const current = `${(item.qty ?? 1) > 1 ? item.qty + 'x ' : ''}${item.text}`;
+    const value = await ui.promptDialog('Edit item — a number prefix sets quantity ("2x eggs")', { placeholder: '2x eggs' });
+    if (!value) return;
+    const { qty, text } = shoppingMod.parseQty(value);
+    if (!text) return;
+    await shoppingMod.updateItem(engine, item, { text, qty });
+  });
+  $('#btn-clear-checked').addEventListener('click', async () => {
+    const listId = ui.getActiveShoppingListId();
+    if (!listId) return;
+    const inList = shoppingMod.itemsInList(engine.view, listId);
+    const cleared = await shoppingMod.clearChecked(engine, inList);
+    if (cleared.length) {
+      ui.toast(`Cleared ${cleared.length} item${cleared.length > 1 ? 's' : ''}`, 'success', {
+        actionLabel: 'Undo',
+        onAction: async () => {
+          await shoppingMod.restoreItems(engine, cleared);
+          ui.toast('Restored');
+        },
+      });
+    }
+  });
+  $('#btn-new-list').addEventListener('click', () => ui.openListModal());
+  $('#form-list').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const name = f.name.value.trim();
+    if (!name) return;
+    const btn = f.querySelector('button[type="submit"]');
+    const created = await ui.busy(btn, shoppingMod.createList(engine, { name, emoji: f.emoji.value }), { label: 'Creating…' });
+    ui.closeModal('modal-list');
+    ui.setActiveShoppingListId(created.payload.listId); // jump to the new list
+    renderShoppingPanel(); // the create's view-emit fired BEFORE the id was set
+    ui.toast(`List "${name}" created`, 'success');
   });
 
   // Sign out (account-scoped)
