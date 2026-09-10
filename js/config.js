@@ -32,9 +32,18 @@ export const CONFIG = {
   // to the test origin. Production: the Cloudflare Worker URL — this is the
   // one piece of server infrastructure the product needs.
   relayEndpoint:
-    isLocal && typeof location !== 'undefined' && new URLSearchParams(location.search).has('relay')
-      ? 'http://127.0.0.1:4791/exchange'
+    isLocal
+      ? (new URLSearchParams(location.search).has('relay')
+          ? 'http://127.0.0.1:4791/exchange'
+          : null) // localhost without the flag: direct path (Playwright mocks)
       : 'https://family-hub-relay.ghostpen66.workers.dev/exchange',
+
+  // Drive Picker (join flow): the picker IS Google's open gesture for
+  // drive.file — a shared folder stays invisible to the app until the user
+  // picks it. appId = project number (client-ID prefix). The API key is a
+  // browser key restricted to the Picker API + our origins (set in console).
+  pickerAppId: '251957454378',
+  pickerApiKey: '',
 
   // === App ===
   refreshInterval: 5 * 60 * 1000,

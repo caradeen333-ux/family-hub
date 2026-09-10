@@ -1221,12 +1221,14 @@ export function showProvisionScreen({ mode, invite }) {
     $('#provision-title').textContent = 'Join your family';
     $('#provision-body').textContent = 'You were invited to a Family Hub. Sign in with your own Google account and set your name.';
     $('#btn-provision').textContent = 'Join family';
+    $('#btn-picker-join').classList.remove('hidden');
     $('#provision-family-label').classList.add('hidden');
     $('#provision-family').required = false; // hidden required field blocks submit
   } else {
     $('#provision-title').textContent = 'Set up your family';
     $('#provision-body').textContent = 'Name your family (not just you — everyone shares this), then set your own name. Everyone else joins with their own account afterwards.';
     $('#btn-provision').textContent = 'Create our family hub';
+    $('#btn-picker-join').classList.add('hidden');
     $('#provision-family-label').classList.remove('hidden');
     $('#provision-family').required = true;
     $('#provision-family').focus();

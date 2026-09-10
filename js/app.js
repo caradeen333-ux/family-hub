@@ -20,6 +20,7 @@ import { getActiveAccount, updateAccount, clearLegacyTokens, setActiveEmail } fr
 import { SyncEngine, makeDriveAdapter } from './sync/sync-engine.js';
 import * as localDb from './storage/local-db.js';
 import { buildInviteLink, parseInvite, provisionFirstUser, joinFamily } from './provisioning.js';
+import { pickFamilyFolder } from './picker.js';
 import * as calendar from './calendar.js';
 import * as notesMod from './notes.js';
 import * as votesMod from './votes.js';
@@ -304,10 +305,76 @@ async function handleProvisionSubmit(e) {
     }
   } catch (err) {
     if (err.friendly) {
-      ui.toast(err.message, 'error');
+      if (parseInvite()) {
+        // Google's drive.file rule: a shared folder stays invisible to the
+        // app until the joiner opens it through the Drive Picker. The direct
+        // join attempt failed — hand them the picker path.
+        ui.toast(`${err.message} Or tap "Choose the family folder" below to open it in Google Drive.`, 'error');
+      } else {
+        ui.toast(err.message, 'error');
+      }
     } else {
       console.error('provision failed', err);
       ui.toast('Setup failed — check your connection and try again', 'error');
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Picker-based join: the user picks the family folder from "Shared with me"
+// in Google's own picker — that pick authorizes the app for the folder under
+// drive.file scope, and the normal join flow proceeds from there.
+async function handlePickerJoin() {
+  const invite = parseInvite();
+  const account = getActiveAccount();
+  if (!invite || !account) return;
+  const name = $('#provision-name').value.trim();
+  if (!name) {
+    ui.toast('Enter your name first', 'error');
+    $('#provision-name').focus();
+    return;
+  }
+
+  const btn = $('#btn-picker-join');
+  btn.disabled = true;
+  try {
+    await ui.busy(btn, ensureValidToken(), { label: 'Signing in…' });
+    const picked = await pickFamilyFolder({ token: getActiveAccount().accessToken });
+    if (!picked) return; // cancelled — stay on the join screen
+
+    // The picker returns a folder (or, if they dug in, the dir.json itself).
+    // Only accept the family from the invite — never a stranger's folder.
+    let dirFileId = null;
+    if (picked.type === 'folder') {
+      const children = await engine.adapter.listChildren(picked.id).catch(() => []);
+      dirFileId = children.find((f) => f.name === 'dir.json')?.id ?? null;
+    } else {
+      dirFileId = picked.id;
+    }
+    if (dirFileId !== invite.dirFileId) {
+      ui.toast('That\'s not the family folder you were invited to — pick the "Family Hub" folder under Shared with me', 'error');
+      return;
+    }
+
+    await ui.busy(btn, (async () => {
+      const result = await joinFamily(engine.adapter, {
+        invite, name, email: account.email, clock: () => clock.now(),
+      });
+      await engine.setDirState({
+        folderId: result.folderId, dirFileId: result.dirFileId,
+        memberKey: result.memberKey, name, email: account.email,
+      });
+      await engine.run();
+    })(), { label: 'Joining family…' });
+    ui.toast('Welcome to the family! 🎉', 'success');
+    ui.showApp();
+    renderAll();
+  } catch (err) {
+    if (err.friendly) ui.toast(err.message, 'error');
+    else {
+      console.error('picker join failed', err);
+      ui.toast(err.message || 'Join failed — try again', 'error');
     }
   } finally {
     btn.disabled = false;
@@ -446,6 +513,7 @@ function wireStaticControls() {
   });
   $('#btn-auth-signin').addEventListener('click', () => ui.busy($('#btn-auth-signin'), startSignIn(), { label: 'Opening Google…' }));
   $('#form-provision').addEventListener('submit', handleProvisionSubmit);
+  $('#btn-picker-join').addEventListener('click', handlePickerJoin);
   ui.wireFormatToolbar();
   $('#btn-enter-hub').addEventListener('click', () => {
     ui.showApp();
