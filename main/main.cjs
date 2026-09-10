@@ -144,17 +144,26 @@ async function startLoopbackOauth() {
         const tokenData = await tokenResp.json();
         if (!tokenResp.ok) throw new Error(tokenData.error_description || tokenData.error);
 
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<html><body style="font-family:sans-serif;background:#0d0f1a;color:#eef0fa;display:grid;place-items:center;height:100vh"><div style="text-align:center"><h2>✓ Signed in</h2><p>You can close this tab.</p></div></body></html>');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end('<html><head><meta charset="utf-8"></head><body style="font-family:sans-serif;background:#0d0f1a;color:#eef0fa;display:grid;place-items:center;height:100vh"><div style="text-align:center"><h2>✓ Signed in</h2><p>You can close this tab.</p></div></body></html>');
 
         resolve({ ok: true, tokens: tokenData });
       } catch (err) {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end('<html><body><p>Sign-in failed: ' + err.message + '</p></body></html>');
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end('<html><head><meta charset="utf-8"></head><body><p>Sign-in failed: ' + err.message + '</p></body></html>');
         resolve({ ok: false, error: err.message });
       }
     });
 
+    // If the user abandons the browser tab, the renderer's "Opening Google…"
+    // must not hang forever — resolve with a friendly failure.
+    const abandonTimer = setTimeout(() => {
+      if (pendingOauth) {
+        server.close();
+        pendingOauth = null;
+        resolve({ ok: false, error: 'Sign-in timed out — please try again' });
+      }
+    }, 5 * 60 * 1000);
     server.listen(0, '127.0.0.1', () => {
       const port = server.address().port;
       const authorizeUrl =
