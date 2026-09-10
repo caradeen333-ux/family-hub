@@ -28,7 +28,7 @@ if (process.env.FH_TEST_PROFILE === '1') {
 const SITE_DIR = path.join(__dirname, '..', 'site');
 const APP_PORT = 41073; // fixed port = stable origin = tokens survive updates
 let APP_URL = null;
-const CLIENT_ID = '251957454378-5sp17im5fa0d8vu5c13h4dsg32gdk6b3.apps.googleusercontent.com';
+const CLIENT_ID = '251957454378-3riapnrcu961tvtfcrdifstv791l70h1.apps.googleusercontent.com'; // "Family Hub Desktop"
 const SCOPES = 'openid https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file';
 
 let mainWindow;
