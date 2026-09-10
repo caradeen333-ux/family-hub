@@ -345,10 +345,23 @@ async function handlePickerJoin() {
 
     // The picker returns a folder (or, if they dug in, the dir.json itself).
     // Only accept the family from the invite — never a stranger's folder.
+    // Google authorizes the PICKED item but not a folder's contents, so a
+    // folder pick alone may not unlock dir.json — in that case, guide them
+    // to pick the dir.json file inside the folder instead.
     let dirFileId = null;
     if (picked.type === 'folder') {
-      const children = await engine.adapter.listChildren(picked.id).catch(() => []);
+      let children = null;
+      try {
+        children = await engine.adapter.listChildren(picked.id);
+      } catch (err) {
+        ui.toast(`That folder is locked (Google error ${err.status || '?'}). Instead, open the "Family Hub" folder in the picker and select the file named "dir.json" inside it.`, 'error');
+        return;
+      }
       dirFileId = children.find((f) => f.name === 'dir.json')?.id ?? null;
+      if (!dirFileId) {
+        ui.toast('Open the "Family Hub" folder in the picker and select the file named "dir.json" inside it.', 'error');
+        return;
+      }
     } else {
       dirFileId = picked.id;
     }
