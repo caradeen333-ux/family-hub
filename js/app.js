@@ -464,7 +464,7 @@ function wireStaticControls() {
       `  Open this link in Chrome — no download needed, it installs itself: ${link}`,
       '',
       'DESKTOP (PC):',
-      `  Download and install: https://github.com/caradeen333-ux/family-hub/releases/latest`,
+      `  Download and install: https://github.com/caradeen333-ux/family-hub/releases/download/v2.1.0-rebuild/Family.Hub.Setup.2.1.0.exe`,
       `  Then open the same link to join: ${link}`,
       '',
       "Everything lives in our family's own Google Drive folder — we own it, no company sees it. Google will also email you separately about folder access; that's expected.",

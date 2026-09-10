@@ -1077,6 +1077,16 @@ label textarea { resize: vertical; min-height: 56px; }
 .shop-item.done { opacity: 0.55; }
 .shop-item.done .shop-text { text-decoration: line-through; }
 .shop-item.done .note-check { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Completed state for chores — filled check + strikethrough, unmissable */
+.chore-row.done .note-check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chore-row.done .note-check svg { opacity: 1; }
+.note-check svg { opacity: 0; transition: opacity var(--dur) var(--ease); }
+.done .note-check svg,
+.shop-item.done .note-check svg { opacity: 1; }
 
 .done-section { margin-top: 10px; }
 .shop-done-toggle {
