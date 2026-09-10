@@ -34,7 +34,7 @@ export const CONFIG = {
   relayEndpoint:
     isLocal && typeof location !== 'undefined' && new URLSearchParams(location.search).has('relay')
       ? 'http://127.0.0.1:4791/exchange'
-      : null,
+      : 'https://family-hub-relay.ghostpen66.workers.dev/exchange',
 
   // === App ===
   refreshInterval: 5 * 60 * 1000,
