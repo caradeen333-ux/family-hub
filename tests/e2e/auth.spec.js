@@ -188,8 +188,10 @@ test('AUTH-09 GIS code flow completes sign-in without any client secret', async 
   });
 
   let exchangeBody = null;
+  let dpopHeader = null;
   await mockTokenEndpoint(page, async (route, body) => {
     exchangeBody = Object.fromEntries(body);
+    dpopHeader = route.request().headers()['dpop'] ?? null;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -206,11 +208,17 @@ test('AUTH-09 GIS code flow completes sign-in without any client secret', async 
   await page.click('#btn-auth-signin');
 
   await expect(page.locator('#screen-provision')).toBeVisible({ timeout: 10_000 });
-  // The exchange carried NO secret and used the page origin as redirect
+  // The exchange carried NO secret, used the page origin, and carried a
+  // valid 3-part DPoP proof JWT
   expect(exchangeBody.grant_type).toBe('authorization_code');
   expect(exchangeBody.client_secret).toBeUndefined();
   expect(exchangeBody.code_verifier).toBeUndefined();
   expect(exchangeBody.redirect_uri).toBe('http://localhost:4173');
+  expect(dpopHeader).toBeTruthy();
+  const [h, p, s] = dpopHeader.split('.');
+  expect(JSON.parse(Buffer.from(h, 'base64url').toString()).typ).toBe('dpop+jwt');
+  expect(JSON.parse(Buffer.from(p, 'base64url').toString()).htu).toBe('https://oauth2.googleapis.com/token');
+  expect(s).toBeTruthy();
   const accounts = await page.evaluate(() => JSON.parse(localStorage.getItem('fh_accounts') ?? '{}'));
   expect(accounts[TEST_EMAIL].refreshToken).toBe('RT-GIS');
 });

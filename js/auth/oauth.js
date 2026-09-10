@@ -112,8 +112,9 @@ export async function exchangeCode({ clientId, code, redirectUri, verifier }) {
 }
 
 // Exchange a GIS-issued code (mobile/web popup flow). NO client secret and
-// NO code_verifier — the code's first-party binding authenticates it. The
-// redirect_uri is the page origin that opened the popup.
+// NO code_verifier — the code's first-party binding authenticates it, and a
+// DPoP proof (RFC 9449) replaces the secret. The redirect_uri is the page
+// origin that opened the popup.
 export async function exchangeGisCode({ clientId, code, redirectUri }) {
   const body = new URLSearchParams({
     code,
@@ -121,10 +122,9 @@ export async function exchangeGisCode({ clientId, code, redirectUri }) {
     grant_type: 'authorization_code',
     redirect_uri: redirectUri,
   });
-  const resp = await fetch(CONFIG.tokenEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
+  const { tokenFetchWithDpop } = await import('./dpop.js');
+  const resp = await tokenFetchWithDpop(body, {
+    fetchFn: (url, init) => fetch(url, init),
   });
   return parseTokenResponse(resp);
 }
@@ -148,10 +148,11 @@ export async function refreshGrant({ clientId, refreshToken }) {
     client_id: clientId,
     refresh_token: refreshToken,
   });
-  const resp = await fetch(CONFIG.tokenEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
+  // Web path: attach a DPoP proof (same key as the exchange) — Google's
+  // secretless flow binds tokens to the key
+  const { tokenFetchWithDpop } = await import('./dpop.js');
+  const resp = await tokenFetchWithDpop(body, {
+    fetchFn: (url, init) => fetch(url, init),
   });
   return parseTokenResponse(resp);
 }
