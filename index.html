@@ -236,11 +236,13 @@
     <form id="form-note">
       <input type="hidden" name="noteId">
       <div class="fmt-toolbar" role="toolbar" aria-label="Text formatting">
-        <button type="button" class="fmt-btn" data-fmt="bold" title="Bold" aria-label="Bold"><b>B</b></button>
-        <button type="button" class="fmt-btn" data-fmt="italic" title="Italic" aria-label="Italic"><i>I</i></button>
+        <button type="button" class="fmt-btn" data-fmt="bold" title="Bold (Ctrl+B)" aria-label="Bold (Ctrl+B)"><b>B</b></button>
+        <button type="button" class="fmt-btn" data-fmt="italic" title="Italic (Ctrl+I)" aria-label="Italic (Ctrl+I)"><i>I</i></button>
+        <button type="button" class="fmt-btn" data-fmt="underline" title="Underline (Ctrl+U)" aria-label="Underline (Ctrl+U)"><u>U</u></button>
+        <button type="button" class="fmt-btn" data-fmt="highlight" title="Highlight (Ctrl+Shift+H)" aria-label="Highlight (Ctrl+Shift+H)">🖍️</button>
         <button type="button" class="fmt-btn" data-fmt="list" title="Bullet list" aria-label="Bullet list">• List</button>
         <button type="button" class="fmt-btn" data-fmt="numlist" title="Numbered list" aria-label="Numbered list">1. List</button>
-        <button type="button" class="fmt-btn" data-fmt="link" title="Link" aria-label="Link">🔗</button>
+        <button type="button" class="fmt-btn" data-fmt="link" title="Link (Ctrl+K)" aria-label="Link (Ctrl+K)">🔗</button>
       </div>
       <label>Your note
         <textarea name="note" id="note-textarea" rows="5" required placeholder="Write anything — it's shared with the whole family"></textarea>

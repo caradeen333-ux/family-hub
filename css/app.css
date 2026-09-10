@@ -565,6 +565,12 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 }
 .note-text a { color: var(--cyan); text-decoration: none; }
 .note-text a:hover { text-decoration: underline; }
+.note-text mark {
+  background: color-mix(in srgb, var(--amber) 35%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
 .note-text ul, .note-text ol { margin: 2px 0 6px; padding-left: 22px; }
 .note-text li { margin: 2px 0; }
 

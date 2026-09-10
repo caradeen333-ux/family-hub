@@ -1017,28 +1017,54 @@ export function openChoreModal(chore = null) {
   return form;
 }
 
-// Wire the formatting toolbar buttons to the note textarea
+// Wire the formatting toolbar buttons + keyboard shortcuts to the note textarea
 export function wireFormatToolbar() {
-  document.querySelectorAll('#form-note .fmt-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const ta = $('#note-textarea');
-      switch (btn.dataset.fmt) {
-        case 'bold': wrapSelection(ta, '**'); break;
-        case 'italic': wrapSelection(ta, '*'); break;
-        case 'list': toggleLinePrefix(ta, '- '); break;
-        case 'numlist': toggleLinePrefix(ta, '1. '); break;
-        case 'link': {
-          const url = prompt('Paste a link (https://…)');
-          if (url && /^https?:\/\//i.test(url)) {
-            wrapSelection(ta, '[', `](${url})`);
-          } else if (url) {
-            toast('Link must start with https://', 'error');
-          }
-          break;
+  const ta = $('#note-textarea');
+
+  const apply = (fmt) => {
+    switch (fmt) {
+      case 'bold': wrapSelection(ta, '**'); break;
+      case 'italic': wrapSelection(ta, '*'); break;
+      case 'underline': wrapSelection(ta, '__'); break;
+      case 'highlight': wrapSelection(ta, '=='); break;
+      case 'list': toggleLinePrefix(ta, '- '); break;
+      case 'numlist': toggleLinePrefix(ta, '1. '); break;
+      case 'link': {
+        const url = prompt('Paste a link (https://…)');
+        if (url && /^https?:\/\//i.test(url)) {
+          wrapSelection(ta, '[', `](${url})`);
+        } else if (url) {
+          toast('Link must start with https://', 'error');
         }
+        break;
       }
-      ta.dispatchEvent(new Event('input'));
-    });
+    }
+    ta.dispatchEvent(new Event('input'));
+  };
+
+  document.querySelectorAll('#form-note .fmt-btn').forEach((btn) => {
+    btn.addEventListener('click', () => apply(btn.dataset.fmt));
+  });
+
+  // Keyboard shortcuts — standard editor feel. Never hijack Ctrl+A/C/V/X/Z.
+  ta.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    const key = e.key.toLowerCase();
+    const map = {
+      b: 'bold',
+      i: 'italic',
+      u: 'underline',
+      k: 'link',
+    };
+    if (map[key]) {
+      e.preventDefault();
+      apply(map[key]);
+      return;
+    }
+    if (key === 'h' && e.shiftKey) {
+      e.preventDefault();
+      apply('highlight');
+    }
   });
 }
 

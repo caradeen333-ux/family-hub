@@ -12,6 +12,13 @@ test('bold and italic', () => {
   assert.match(renderMarkdown('_under_ score'), /<em>under<\/em>/);
 });
 
+test('underline and highlight', () => {
+  assert.match(renderMarkdown('__important__ stuff'), /<u>important<\/u>/);
+  assert.match(renderMarkdown('==flagged== item'), /<mark>flagged<\/mark>/);
+  // no clash with italic single-underscore
+  assert.match(renderMarkdown('_soft_ __hard__'), /<em>soft<\/em> <u>hard<\/u>/);
+});
+
 test('code spans are escaped and never transformed', () => {
   const html = renderMarkdown('use `**not bold**` here');
   assert.match(html, /<code>\*\*not bold\*\*<\/code>/);
