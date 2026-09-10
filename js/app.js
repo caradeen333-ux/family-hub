@@ -202,8 +202,11 @@ async function profileFromTokens(tokens) {
   const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!resp.ok) throw new Error(`userinfo failed (${resp.status})`);
-  const data = await resp.json();
+  const text = await resp.text().catch(() => '');
+  if (!resp.ok) throw new Error(`userinfo failed (${resp.status}): ${text.slice(0, 200)}`);
+  let data = {};
+  try { data = JSON.parse(text); } catch { /* non-JSON body */ }
+  console.error('userinfo response:', text.slice(0, 300), '| token keys:', Object.keys(tokens).join(','));
   return { sub: data.sub, email: data.email, name: data.name };
 }
 

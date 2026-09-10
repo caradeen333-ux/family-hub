@@ -13,8 +13,9 @@ export const CONFIG = {
   WEB_CLIENT_ID: '251957454378-421ngcghpsauj9c7h3pie3715fgj7hme.apps.googleusercontent.com',
   DESKTOP_CLIENT_ID: '251957454378-3riapnrcu961tvtfcrdifstv791l70h1.apps.googleusercontent.com',
 
-  // Exactly these three scopes (rebuild plan, Phase 0)
-  scopes: ['openid', 'https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/drive.file'],
+  // The three data scopes + openid/email/profile (email+profile are
+  // non-sensitive and required for Google to return the account email)
+  scopes: ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/calendar.readonly', 'https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/drive.file'],
 
   // Redirects must match the console EXACTLY
   webRedirectUri: isLocal

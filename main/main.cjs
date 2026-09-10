@@ -39,7 +39,9 @@ let CLIENT_SECRET = null;
 try {
   CLIENT_SECRET = require('./secrets.local.json').desktopClientSecret ?? null;
 } catch { /* built without the file — sign-in will fail with the secret error */ }
-const SCOPES = 'openid https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file';
+// email + profile are non-sensitive scopes Google only returns when asked —
+// without them the id_token and userinfo contain just `sub`, no email
+const SCOPES = 'openid email profile https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file';
 
 let mainWindow;
 let pendingOauth = null; // {resolve, reject, state}
