@@ -151,12 +151,22 @@ export class DriveAdapter {
       });
     }
 
-    const dirFile = await this.createFile({
-      name: DIR_FILE_NAME,
-      mimeType: 'application/json',
-      parents: [folder.id],
-      appProperties: { [APP_FILE_PROP]: 'dir' },
-    });
+    // Re-provisioning (new device, family already exists): reuse the folder's
+    // existing dir.json instead of creating a second registry
+    let dirFile = null;
+    try {
+      const children = await this.listChildren(folder.id);
+      dirFile = children.find((f) => f.name === DIR_FILE_NAME) ?? null;
+    } catch { dirFile = null; }
+
+    if (!dirFile) {
+      dirFile = await this.createFile({
+        name: DIR_FILE_NAME,
+        mimeType: 'application/json',
+        parents: [folder.id],
+        appProperties: { [APP_FILE_PROP]: 'dir' },
+      });
+    }
 
     return {
       folderId: folder.id,
