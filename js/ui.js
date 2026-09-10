@@ -469,6 +469,24 @@ export function renderDinnerCard(view, { activeMemberKey }) {
   $('#dinner-card-slot').replaceChildren(dinnerCard(view, { activeMemberKey }));
 }
 
+// Schedule view selector: My schedule / Everyone / each person
+export function renderScheduleSelector(members, activeKey, current) {
+  const sel = $('#schedule-selector');
+  if (!sel) return;
+  const options = [
+    { key: 'my', label: 'My schedule' },
+    { key: 'all', label: 'Everyone' },
+    ...[...members.entries()].map(([key, m]) => ({ key, label: m.name ?? key })),
+  ];
+  sel.replaceChildren(...options.map((o) => {
+    const chip = el('button', `chip ${o.key === current ? 'active' : ''}`, o.label);
+    chip.addEventListener('click', () => {
+      document.dispatchEvent(new CustomEvent('fh:schedule-change', { detail: { key: o.key } }));
+    });
+    return chip;
+  }));
+}
+
 // "Due today" chores section on My Day — the day's obligations next to the
 // day's events, one tap to check off
 export function renderDueToday(choresMap, { members, activeMemberKey }) {
@@ -567,9 +585,27 @@ function dinnerCard(view, { activeMemberKey }) {
   const meal = mealOfDay();
   const card = el('div', 'card dinner-card');
 
+  // Header row with a collapse toggle — the card eats calendar real estate
+  const head = el('div', 'meal-head');
+  const kicker = el('div', 'dinner-kicker', `${MEAL_EMOJIS[meal] ?? '🍽️'} ${meal[0].toUpperCase() + meal.slice(1)}`);
+  const collapseBtn = el('button', 'meal-collapse-btn', '▾');
+  collapseBtn.setAttribute('aria-label', 'Collapse meal card');
+  collapseBtn.addEventListener('click', () => {
+    const collapsed = card.classList.toggle('meal-collapsed');
+    collapseBtn.textContent = collapsed ? '▸' : '▾';
+    try { localStorage.setItem('fh_meal_collapsed', collapsed ? '1' : '0'); } catch { /* ignore */ }
+  });
+  if (localStorage.getItem('fh_meal_collapsed') === '1') {
+    card.classList.add('meal-collapsed');
+    collapseBtn.textContent = '▸';
+  }
+  head.append(kicker, collapseBtn);
+  card.appendChild(head);
+
+  const body = el('div', 'meal-body');
+
   if (open) {
-    card.appendChild(el('div', 'dinner-kicker', `${MEAL_EMOJIS[meal] ?? '🍽️'} ${meal[0].toUpperCase() + meal.slice(1)}`));
-    card.appendChild(el('div', 'dinner-title', open.poll.title ?? MEAL_LABELS[meal]));
+    body.appendChild(el('div', 'dinner-title', open.poll.title ?? MEAL_LABELS[meal]));
     const options = el('div', 'poll-options');
     const counts = [...open.tallies.values()];
     const max = Math.max(0, ...counts);
@@ -601,7 +637,7 @@ function dinnerCard(view, { activeMemberKey }) {
       }
       options.appendChild(wrap);
     }
-    card.appendChild(options);
+    body.appendChild(options);
 
     const foot = el('div', 'poll-foot');
     const leaders = leadingOptions(open.poll, open.tallies);
@@ -616,7 +652,8 @@ function dinnerCard(view, { activeMemberKey }) {
     if (open.poll.closesAt) {
       foot.appendChild(el('span', '', `closes ${closes.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`));
     }
-    card.appendChild(foot);
+    body.appendChild(foot);
+    card.appendChild(body);
     return card;
   }
 
@@ -634,7 +671,8 @@ function dinnerCard(view, { activeMemberKey }) {
     document.dispatchEvent(new CustomEvent('fh:dinner-poll'));
   });
   create.appendChild(btn);
-  card.appendChild(create);
+  body.appendChild(create);
+  card.appendChild(body);
   return card;
 }
 
@@ -957,7 +995,7 @@ export function renderWishlist(view) {
 
 // ---------- Settings ----------
 
-export function renderSettings({ members, dirState, account, familyName }) {
+export function renderSettings({ members, dirState, account, familyName, memberCalendars }) {
   // Family — the family's own name first, never a person's name
   const info = $('#family-info');
   if (dirState) {
@@ -973,9 +1011,23 @@ export function renderSettings({ members, dirState, account, familyName }) {
   const list = $('#member-list');
   if (members.size) {
     list.replaceChildren(...[...members.entries()].map(([key, m]) => {
-      const row = el('div', 'member-row');
+      const row = el('div', 'member-row member-row-cal');
       row.appendChild(memberChip(key, members));
-      row.appendChild(el('span', 'member-email', m.email));
+      const info = el('span', 'member-email', m.email);
+      row.appendChild(info);
+      // Calendar hookup: which calendar id belongs to this member (set once;
+      // the member shares it with you in Google Calendar first — see FAQ)
+      const calInput = el('input', 'member-cal-input');
+      calInput.type = 'text';
+      calInput.placeholder = 'Calendar ID (optional)';
+      calInput.value = memberCalendars?.[key] ?? '';
+      calInput.setAttribute('aria-label', `Calendar ID for ${m.name}`);
+      calInput.addEventListener('change', () => {
+        document.dispatchEvent(new CustomEvent('fh:member-calendar', {
+          detail: { memberKey: key, calendarId: calInput.value.trim() },
+        }));
+      });
+      row.appendChild(calInput);
       return row;
     }));
   } else {

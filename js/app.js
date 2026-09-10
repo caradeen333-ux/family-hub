@@ -32,6 +32,7 @@ const $ = (sel) => document.querySelector(sel);
 
 const engine = new SyncEngine({ adapter: makeDriveAdapter() });
 let range = 1;
+let scheduleView = 'my';
 let calendarEvents = [];
 let notesFilter = { search: '', sort: 'newest', showDone: true, category: 'All', importance: 'All' };
 
@@ -317,6 +318,7 @@ function renderAll() {
   if (!engine.view) return;
   ui.setMembers(engine.view.members);
   ui.renderDinnerCard(engine.view, { activeMemberKey: engine.activeMemberKey() });
+  ui.renderScheduleSelector(engine.view.members, engine.activeMemberKey(), scheduleView);
   ui.renderDueToday(engine.view.chores, { members: engine.view.members, activeMemberKey: engine.activeMemberKey() });
   ui.renderEvents(calendarEvents, { containerId: 'myday-events', range });
   renderNotesPanel();
@@ -328,18 +330,43 @@ function renderAll() {
     dirState: engine.dirState,
     account: getActiveAccount(),
     familyName: engine.view.config.get('familyName') ?? null,
+    memberCalendars: engine.view.config.get('calendars') ?? {},
   });
   ui.renderAccount(getActiveAccount());
 }
 
+// Schedule view: 'my' | 'all' | memberKey. Calendar ids come from the
+// config.upsert 'calendars' map {memberKey: calendarId}, with the active
+// member defaulting to their own 'primary' calendar.
 async function loadCalendar() {
   const active = getActiveAccount();
   if (!active) return;
-  const members = [...(engine.view?.members?.values() ?? [])];
-  const calendars = CONFIG.defaultPeople
-    .filter((p) => members.some((m) => m.name === p.name))
-    .map((p) => ({ ...p, calendarId: p.calendarId }));
-  if (!calendars.length) return;
+  const members = engine.view?.members ?? new Map();
+  const memberCalendars = engine.view?.config.get('calendars') ?? {};
+  const activeKey = engine.activeMemberKey();
+
+  let calendars = [];
+  if (scheduleView === 'my') {
+    const name = members.get(activeKey)?.name ?? active.name ?? 'Me';
+    calendars = [{ calendarId: memberCalendars[activeKey] ?? 'primary', name, color: ui.memberColor(activeKey) }];
+  } else if (scheduleView === 'all') {
+    calendars = [...members.entries()]
+      .map(([key, m]) => ({
+        calendarId: memberCalendars[key] ?? (key === activeKey ? 'primary' : ''),
+        name: m.name,
+        color: ui.memberColor(key),
+      }))
+      .filter((c) => c.calendarId);
+  } else {
+    const m = members.get(scheduleView);
+    const id = memberCalendars[scheduleView] ?? (scheduleView === activeKey ? 'primary' : '');
+    if (m && id) calendars = [{ calendarId: id, name: m.name, color: ui.memberColor(scheduleView) }];
+  }
+
+  if (!calendars.length) {
+    $('#myday-events').replaceChildren(ui.emptyState('📅', 'No calendars connected yet', 'Each person shares their Google Calendar with you once — see the ? help for the one-time steps.'));
+    return;
+  }
   ui.skeletons($('#myday-events'), 4);
   try {
     calendarEvents = await calendar.fetchCalendarEvents(calendars, { range, now: new Date(clock.now()) });
@@ -448,6 +475,15 @@ function wireStaticControls() {
       $('#btn-share-email').click();
     }
   });
+  document.addEventListener('fh:member-calendar', async (e) => {
+    const current = engine.view?.config.get('calendars') ?? {};
+    const next = { ...current };
+    if (e.detail.calendarId) next[e.detail.memberKey] = e.detail.calendarId;
+    else delete next[e.detail.memberKey];
+    await engine.mutate('config.upsert', { key: 'calendars', value: next });
+    ui.toast('Calendar saved — schedules will update', 'success');
+    loadCalendar().catch(() => {});
+  });
   document.addEventListener('fh:family-rename', async () => {
     const current = engine.view?.config.get('familyName') ?? '';
     const name = await ui.promptDialog('Rename your family — this is the name everyone shares.', { placeholder: 'e.g. The Murphys' });
@@ -542,6 +578,11 @@ function wireAppEvents() {
         ui.switchTab(next.dataset.tab);
       }
     });
+  });
+  document.addEventListener('fh:schedule-change', (e) => {
+    scheduleView = e.detail.key;
+    ui.renderScheduleSelector(engine.view?.members ?? new Map(), engine.activeMemberKey(), scheduleView);
+    loadCalendar().catch(() => {});
   });
   document.querySelectorAll('.range-btn').forEach((btn) => {
     btn.addEventListener('click', () => {

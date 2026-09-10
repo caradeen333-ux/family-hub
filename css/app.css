@@ -927,6 +927,20 @@ label textarea { resize: vertical; min-height: 56px; }
 }
 .member-row .member-email { color: var(--text-3); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .member-row.active-account { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.member-row-cal { flex-wrap: wrap; }
+.member-cal-input {
+  flex-basis: 100%;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 7px 10px;
+  transition: border-color var(--dur) var(--ease);
+}
+.member-cal-input::placeholder { color: var(--text-3); }
+.member-cal-input:focus { border-color: var(--accent); outline: none; }
 #auth-area .member-row { margin-bottom: 6px; }
 
 /* ---------- Toasts ---------- */
@@ -1129,6 +1143,36 @@ label textarea { resize: vertical; min-height: 56px; }
   border-radius: 6px;
 }
 .toast-action:hover { background: var(--accent-soft); }
+
+/* ---------- Meal card collapse + schedule selector ---------- */
+
+.meal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.meal-collapse-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--text-3);
+  font-size: 13px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.meal-collapse-btn:hover { background: var(--surface-2); color: var(--text); }
+.meal-collapsed .meal-body { display: none; }
+.meal-collapsed { padding: 12px 16px; }
+.meal-collapsed .dinner-kicker { margin-bottom: 0; }
+
+.schedule-selector {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
 
 /* ---------- Due today (My Day) ---------- */
 
