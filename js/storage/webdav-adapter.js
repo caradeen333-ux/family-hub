@@ -13,7 +13,7 @@ export class WebDAVAdapter {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.username = username;
     this.password = password;
-    this.fetchFn = fetchFn;
+    this.fetchFn = (...args) => fetchFn(...args); // bind — strict ESM
   }
 
   _notImplemented(method) {

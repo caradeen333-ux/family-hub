@@ -22,8 +22,18 @@ export function deriveMemberKey(email) {
   return cleaned;
 }
 
-// Build the invite link a first member shares with the family
-export function buildInviteLink({ folderId, dirFileId, origin = window.location?.origin ?? '' }) {
+// Build the invite link a first member shares with the family.
+// CRITICAL: the link must ALWAYS use the public web origin — never the
+// app's own origin. (Electron runs on http://127.0.0.1:41073 and the
+// first real invite embedded that dead local address.)
+export function inviteOrigin() {
+  if (typeof window !== 'undefined' && window.__electron) {
+    return 'https://caradeen333-ux.github.io/family-hub';
+  }
+  return typeof window !== 'undefined' ? window.location.origin : 'https://caradeen333-ux.github.io/family-hub';
+}
+
+export function buildInviteLink({ folderId, dirFileId, origin = inviteOrigin() }) {
   const payload = JSON.stringify({ v: 1, folderId, dirFileId });
   const encoded = btoa(unescape(encodeURIComponent(payload)))
     .replace(/\+/g, '-')
@@ -49,7 +59,9 @@ export function parseInvite(hash = window.location?.hash ?? '') {
 }
 
 // First person provisions the family. Returns {folderId, dirFileId, logFileId}
-export async function provisionFirstUser(adapter, { name, email, clock = () => Date.now() }) {
+// familyName is the FAMILY's own name — the founder's name is just their
+// member name, never the name on entry (owner feedback 2026-09-09).
+export async function provisionFirstUser(adapter, { name, email, familyName, clock = () => Date.now() }) {
   const memberKey = deriveMemberKey(email);
   const { folderId, dirFileId } = await adapter.provision({ name, email });
   const month = new Date(clock());
@@ -59,16 +71,20 @@ export async function provisionFirstUser(adapter, { name, email, clock = () => D
   const events = [
     makeEvent('member.joined', memberKey, { key: memberKey, name, email }, { now: clock() }),
     makeEvent('config.upsert', memberKey, { key: 'appPrefs', value: { createdBy: memberKey } }, { now: clock() }),
+    ...(familyName?.trim()
+      ? [makeEvent('config.upsert', memberKey, { key: 'familyName', value: familyName.trim() }, { now: clock() })]
+      : []),
   ];
   await adapter.appendToMyLog({ folderId, dirFileId, memberKey, name, email, events });
 
   return { folderId, dirFileId, logFileId, memberKey };
 }
 
-// A new member joins via the invite link
+// A new member joins via the invite link. The adapter resolves the final
+// member key (collisions get a numeric suffix) — always use the returned key.
 export async function joinFamily(adapter, { invite, name, email, clock = () => Date.now() }) {
   const memberKey = deriveMemberKey(email);
-  const { folderId, dirFileId, logFileId } = await adapter.join({
+  const { folderId, dirFileId, logFileId, memberKey: actualKey } = await adapter.join({
     folderId: invite.folderId,
     dirFileId: invite.dirFileId,
     memberKey,
@@ -77,9 +93,9 @@ export async function joinFamily(adapter, { invite, name, email, clock = () => D
   });
 
   const events = [
-    makeEvent('member.joined', memberKey, { key: memberKey, name, email }, { now: clock() }),
+    makeEvent('member.joined', actualKey, { key: actualKey, name, email }, { now: clock() }),
   ];
-  await adapter.appendToMyLog({ folderId, dirFileId, memberKey, name, email, events });
+  await adapter.appendToMyLog({ folderId, dirFileId, memberKey: actualKey, name, email, events });
 
-  return { folderId, dirFileId, logFileId, memberKey };
+  return { folderId, dirFileId, logFileId, memberKey: actualKey };
 }

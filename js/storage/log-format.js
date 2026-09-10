@@ -37,6 +37,10 @@ export const EVENT_TYPES = Object.freeze({
   VOTE_CAST: 'vote.cast',
   CONFIG_UPSERT: 'config.upsert',
   MEMBER_JOINED: 'member.joined',
+  LIST_UPSERT: 'list.upsert',
+  LIST_TOMBSTONE: 'list.tombstone',
+  ITEM_UPSERT: 'item.upsert',
+  ITEM_TOMBSTONE: 'item.tombstone',
 });
 
 // Required payload fields per event type (used for validation)
@@ -50,6 +54,10 @@ const PAYLOAD_FIELDS = {
   [EVENT_TYPES.VOTE_CAST]: ['pollId', 'optionId'],
   [EVENT_TYPES.CONFIG_UPSERT]: ['key', 'value'],
   [EVENT_TYPES.MEMBER_JOINED]: ['key', 'name', 'email'],
+  [EVENT_TYPES.LIST_UPSERT]: ['listId', 'name'],
+  [EVENT_TYPES.LIST_TOMBSTONE]: ['listId'],
+  [EVENT_TYPES.ITEM_UPSERT]: ['itemId', 'listId', 'text'],
+  [EVENT_TYPES.ITEM_TOMBSTONE]: ['itemId', 'listId'],
 };
 
 // Build a complete event. ts defaults to now, but callers pass an explicit
@@ -133,6 +141,12 @@ export function mergeKey(event) {
       return `config:${event.payload.key}`;
     case EVENT_TYPES.MEMBER_JOINED:
       return `member:${event.payload.key}`;
+    case EVENT_TYPES.LIST_UPSERT:
+    case EVENT_TYPES.LIST_TOMBSTONE:
+      return `list:${event.payload.listId}`;
+    case EVENT_TYPES.ITEM_UPSERT:
+    case EVENT_TYPES.ITEM_TOMBSTONE:
+      return `item:${event.payload.itemId}`;
     default:
       return null;
   }

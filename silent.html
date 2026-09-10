@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Family Hub — Signing in…</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+      background: #0b0d14; color: #a5adc8; font: 14px/1.5 system-ui, sans-serif; }
+    .dot { width: 28px; height: 28px; border-radius: 50%; margin: 0 auto 12px;
+      border: 3px solid #2a2f45; border-top-color: #8b5cf6; animation: spin 0.9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div>
+    <div class="dot"></div>
+    <div>Signing you in…</div>
+  </div>
+  <script>
+    // Silent re-auth landing page (prompt=none hidden iframe).
+    // Delivers the auth code (or failure) back to the opener via postMessage,
+    // then closes itself. Same origin → the opener can trust the message.
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+      const error = params.get('error');
+
+      // parent = hidden iframe (prompt=none); opener = fallback top-level
+      const target = window.parent && window.parent !== window ? window.parent : window.opener;
+      if (target) {
+        const payload = code && state
+          ? { type: 'fh-silent-auth', code, state }
+          : { type: 'fh-silent-auth', error: error || 'interaction_required' };
+        target.postMessage(payload, target.location.origin);
+      }
+      window.close();
+    })();
+  </script>
+</body>
+</html>

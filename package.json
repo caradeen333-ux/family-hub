@@ -4,15 +4,19 @@
   "description": "Shared family calendar & notes app",
   "main": "main/main.cjs",
   "scripts": {
-    "start": "electron .",
+    "start": "set FH_TEST_PROFILE=1&& electron .",
+    "prebuild": "npm run build:site",
     "build": "electron-builder build --win --x64",
     "build:site": "node scripts/build-site.js",
-    "test": "node --test \"tests/unit/*.test.js\""
+    "test": "node --test \"tests/unit/*.test.js\"",
+    "test:e2e": "npm run build:site && playwright test"
   },
   "build": {
     "appId": "com.familyhub.app",
     "productName": "Family Hub",
-    "directories": { "output": "dist" },
+    "directories": {
+      "output": "dist"
+    },
     "win": {
       "target": "nsis",
       "icon": "icons/icon-512.png"
@@ -26,11 +30,7 @@
     "files": [
       "main/**/*",
       "icons/**/*",
-      "index.html",
-      "manifest.json",
-      "sw.js",
-      "js/**/*",
-      "css/**/*"
+      "site/**/*"
     ]
   },
   "repository": {
@@ -40,6 +40,7 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "electron": "^43.3.0",
     "electron-builder": "^26.15.3"
   }

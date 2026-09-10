@@ -1,120 +1,46 @@
-// notes.js — Google Sheets API wrapper for structured notes
-// Schema: id | author | date | time | importance | color | category | note | created_at | updated_at | status | _row
+// notes.js — Notes as events over the log (replaces the Sheets DB).
+// Every mutation is local-first: the sync engine merges + flushes.
 
-const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
+import { EVENT_TYPES } from './storage/log-format.js';
 
-// Read all notes from the configured sheet
-async function fetchNotes() {
-  const token = getAccessToken();
-  const sheetId = loadSetting('notesSheetId') || CONFIG.notesSheetId;
-  if (!token || !sheetId) return [];
+export const NOTE_CATEGORIES = ['General', 'Shopping', 'Medical', 'School', 'Chores', 'Work'];
 
-  const range = 'Notes!A2:L'; // Skip header row
-  const url = `${SHEETS_API}/${sheetId}/values/${encodeURIComponent(range)}`;
-
-  try {
-    const resp = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!resp.ok) {
-      if (resp.status === 401) {
-        const refreshed = await refreshToken();
-        if (refreshed) return fetchNotes();
-      }
-      console.error('Sheets fetch failed:', resp.status);
-      return [];
-    }
-    const data = await resp.json();
-    const rows = data.values || [];
-    return rows.map((row, i) => ({
-      id:          row[0]  || '',
-      author:      row[1]  || '',
-      date:        row[2]  || '',
-      time:        row[3]  || '',
-      importance:  row[4]  || 'medium',
-      color:       row[5]  || '',
-      category:    row[6]  || 'General',
-      note:        row[7]  || '',
-      createdAt:   row[8]  || '',
-      updatedAt:   row[9]  || '',
-      status:      row[10] || 'active',
-      rowIndex:    i + 2, // Row number in sheet (1-indexed, +1 for header)
-    }));
-  } catch (e) {
-    console.error('Sheets fetch error:', e);
-    return [];
-  }
-}
-
-// Append a new note row
-async function addNote(noteData) {
-  const token = getAccessToken();
-  const sheetId = loadSetting('notesSheetId') || CONFIG.notesSheetId;
-  if (!token || !sheetId) throw new Error('Not signed in or no sheet configured');
-
-  const now = new Date().toISOString();
-  const row = [
-    noteData.id,
-    noteData.author,
-    noteData.date,
-    noteData.time || '',
-    noteData.importance || 'medium',
-    noteData.color || CONFIG.people.find(p => p.name === noteData.author)?.color || '#7c5cfc',
-    noteData.category || 'General',
-    noteData.note,
-    noteData.createdAt || now,
-    noteData.updatedAt || now,
-    noteData.status || 'active',
-  ];
-
-  const range = 'Notes!A2:L2';
-  const url = `${SHEETS_API}/${sheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
-
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ values: [row] }),
-  });
-
-  if (!resp.ok) throw new Error(`Failed to add note (${resp.status})`);
-  return resp.json();
-}
-
-// Update a specific row (for edits and status changes)
-async function updateNoteRow(rowIndex, values) {
-  const token = getAccessToken();
-  const sheetId = loadSetting('notesSheetId') || CONFIG.notesSheetId;
-  if (!token || !sheetId) throw new Error('Not signed in or no sheet configured');
-
-  const range = `Notes!A${rowIndex}:L${rowIndex}`;
-  const url = `${SHEETS_API}/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=RAW`;
-
-  const resp = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ values: [values] }),
-  });
-
-  if (!resp.ok) throw new Error(`Failed to update note (${resp.status})`);
-  return resp.json();
-}
-
-// Generate a simple UUID (no crypto dependency needed for note IDs)
-function generateId() {
+export function generateId() {
   return 'n' + Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
 }
 
-// Helper: load from localStorage with fallback to CONFIG
-function loadSetting(key) {
-  try {
-    const val = localStorage.getItem(`fh_${key}`);
-    if (val) return val;
-  } catch (e) { /* */ }
-  return CONFIG[key] || null;
+// Notes live in engine.view.notes: Map<noteId, payload>
+// payload: {noteId, text, importance, category, date, time, done}
+
+export async function addNote(engine, { text, importance = 'normal', category = 'General', date = '', time = '', done = false, pinned = false }) {
+  return engine.mutate(EVENT_TYPES.NOTE_UPSERT, {
+    noteId: generateId(),
+    text,
+    importance,
+    category,
+    date,
+    time,
+    done,
+    pinned,
+  });
+}
+
+export async function updateNote(engine, note) {
+  return engine.mutate(EVENT_TYPES.NOTE_UPSERT, { ...note });
+}
+
+export async function deleteNote(engine, noteId) {
+  return engine.mutate(EVENT_TYPES.NOTE_TOMBSTONE, { noteId });
+}
+
+// Sort view-model notes for display: done sinks, then importance rank,
+// then newest first (payloads are enriched with ts by merge)
+export function sortedNotes(notesMap) {
+  return [...notesMap.values()].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    const rank = { high: 0, normal: 1, low: 2 };
+    const imp = (rank[a.importance ?? 'normal'] ?? 1) - (rank[b.importance ?? 'normal'] ?? 1);
+    if (imp) return imp;
+    return (b.ts ?? 0) - (a.ts ?? 0);
+  });
 }

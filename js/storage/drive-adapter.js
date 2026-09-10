@@ -22,7 +22,8 @@ const RMW_RETRIES = 3;
 export class DriveAdapter {
   // fetchFn injectable for tests; getAccessToken() → Promise<access_token string>
   constructor({ fetchFn = fetch, getAccessToken, clock = () => Date.now() }) {
-    this.fetchFn = fetchFn;
+    // bind: window.fetch throws "Illegal invocation" unbound under strict ESM
+    this.fetchFn = (...args) => fetchFn(...args);
     this.getAccessToken = getAccessToken;
     this.clock = clock;
   }
@@ -40,6 +41,8 @@ export class DriveAdapter {
       method,
       headers: { ...(await this.authHeaders()), ...headers },
       body,
+      // Never hang silently — a stalled request must fail fast and visibly
+      signal: AbortSignal.timeout(20_000),
     });
     if (resp.status === 401) {
       const err = new Error('drive-401');
@@ -88,11 +91,14 @@ export class DriveAdapter {
   // a clobbered update leaves our ids out of the file and they retry next
   // sync as duplicate lines (invisible to merge). Spike S5 tunes this.
   async mediaUpdate(fileId, text, etag) {
-    const resp = await this.driveFetch(`${fileId}`, {
+    // MUST use the upload endpoint with uploadType=media — PATCHing the
+    // metadata URL with raw content 400s (this bug was masked by the test
+    // mocks accepting both paths and bit the first real provision)
+    const url = `${DRIVE_UPLOAD}/${fileId}?uploadType=media`;
+    const resp = await this.fetchFn(url, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'text/plain' },
+      headers: { ...(await this.authHeaders()), 'Content-Type': 'text/plain' },
       body: text,
-      expectJson: false,
     });
     if (resp.status === 412 || resp.status === 409) {
       const err = new Error(`Drive update conflict on ${fileId}`);
@@ -109,11 +115,12 @@ export class DriveAdapter {
 
   async getMetadata(fileId) {
     return this.driveJson(`${fileId}`, {
-      query: 'fields=id,name,etag,appProperties,parents,trashed',
+      // appProperties AND etag both 400 in `fields` under drive.file
+      query: 'fields=id,name,parents,trashed',
     });
   }
 
-  async listChildren(folderId, query = '', fields = 'files(id,name,appProperties,etag,trashed)') {
+  async listChildren(folderId, query = '', fields = 'files(id,name,trashed)') {
     const q = [`'${folderId}' in parents`, 'trashed = false', query].filter(Boolean).join(' and ');
     const url = `${DRIVE_API}?q=${encodeURIComponent(q)}&fields=${fields}&pageSize=1000`;
     const resp = await this.fetchFn(url, { headers: await this.authHeaders() });
@@ -129,8 +136,13 @@ export class DriveAdapter {
 
   // First person: find-or-create the family folder, then dir.json + own log.
   async provision({ name, email }) {
-    let folder = await this.findFolderByProperty();
-    if (!folder) folder = await this.findFolderByName('Family Hub');
+    // Searches are best-effort: under drive.file, files.list with
+    // appProperties queries can 403 (spike S1 confirmed live). A fresh
+    // provision just creates; re-provisioning a device reaches the folder
+    // via dir.json/invite, not search.
+    let folder = null;
+    try { folder = await this.findFolderByProperty(); } catch { folder = null; }
+    try { if (!folder) folder = await this.findFolderByName('Family Hub'); } catch { folder = null; }
     if (!folder) {
       folder = await this.createFile({
         name: 'Family Hub',
@@ -139,12 +151,22 @@ export class DriveAdapter {
       });
     }
 
-    const dirFile = await this.createFile({
-      name: DIR_FILE_NAME,
-      mimeType: 'application/json',
-      parents: [folder.id],
-      appProperties: { [APP_FILE_PROP]: 'dir' },
-    });
+    // Re-provisioning (new device, family already exists): reuse the folder's
+    // existing dir.json instead of creating a second registry
+    let dirFile = null;
+    try {
+      const children = await this.listChildren(folder.id);
+      dirFile = children.find((f) => f.name === DIR_FILE_NAME) ?? null;
+    } catch { dirFile = null; }
+
+    if (!dirFile) {
+      dirFile = await this.createFile({
+        name: DIR_FILE_NAME,
+        mimeType: 'application/json',
+        parents: [folder.id],
+        appProperties: { [APP_FILE_PROP]: 'dir' },
+      });
+    }
 
     return {
       folderId: folder.id,
@@ -186,16 +208,39 @@ export class DriveAdapter {
 
   // Joining member: the files.get below is the drive.file "open" gesture.
   // Registers own member entry + current month's log into dir.json.
+  // Two friends of flawless onboarding:
+  //  - the open-gesture failing means the family hasn't shared the folder
+  //    with this account yet — throw a friendly, human-readable error
+  //  - a member key that collides with an existing member (two mikes) gets an
+  //    automatic numeric suffix instead of failing
   async join({ folderId, dirFileId, memberKey, name, email }) {
-    await this.getMetadata(dirFileId); // open gesture — throws if not granted
+    try {
+      await this.getMetadata(dirFileId); // open gesture
+    } catch (err) {
+      if (err.status === 404 || err.status === 403) {
+        const friendly = new Error(
+          `This family hasn't added your account yet. Ask them to invite you with this exact Google email: ${email}`
+        );
+        friendly.friendly = true;
+        throw friendly;
+      }
+      throw err;
+    }
+
+    // Collision-proof the member key (suffix 2, 3, … until free)
+    const dir = await this.readDir(dirFileId);
+    let key = memberKey;
+    const taken = (k) => Boolean(dir?.data?.members?.[k]);
+    for (let n = 2; taken(key); n++) key = `${memberKey}${n}`;
+
     const month = this.currentMonth();
     const logFile = await this.createFile({
-      name: logFileName(memberKey, month),
+      name: logFileName(key, month),
       parents: [folderId],
-      appProperties: { [APP_FILE_PROP]: memberKey },
+      appProperties: { [APP_FILE_PROP]: key },
     });
-    await this.registerFiles({ dirFileId, memberKey, name, email, files: { [this.monthKey(month)]: logFile.id } });
-    return { folderId, dirFileId, logFileId: logFile.id };
+    await this.registerFiles({ dirFileId, memberKey: key, name, email, files: { [this.monthKey(month)]: logFile.id } });
+    return { folderId, dirFileId, logFileId: logFile.id, memberKey: key };
   }
 
   // ---- discovery ----
@@ -274,7 +319,10 @@ export class DriveAdapter {
 
     // Fallback / conflict-copy sweep: list the folder, match by filename
     // pattern (conflict copies like `mom (1)-2026-09.jsonl` included).
-    const children = await this.listChildren(folderId);
+    // Non-fatal: drive.file may 403 listing (S1) — dir.json is the primary
+    // discovery authority, listing is only a bonus sweep.
+    let children = [];
+    try { children = await this.listChildren(folderId); } catch { children = []; }
     for (const file of children) {
       if (file.name === DIR_FILE_NAME) continue;
       const m = file.name.match(/^([\w.-]+?)(\s\(\d+\))?-\d{4}-\d{2}\.jsonl$/);
@@ -292,18 +340,18 @@ export class DriveAdapter {
     const out = { dirFileId, folderId, dirEtag: dir?.etag, logs: [], malformed: 0 };
     for (const entry of logs) {
       try {
-        const meta = await this.getMetadata(entry.fileId);
-        if (meta.trashed) continue;
-        if (knownEtags[entry.fileId] === meta.etag) {
-          out.logs.push({ ...entry, unchanged: true });
+        // Media-first: the download's ETag header carries the etag (the
+        // metadata `etag` field is NOT selectable under drive.file)
+        const media = await this.mediaGet(entry.fileId);
+        if (knownEtags[entry.fileId] === media.etag) {
+          out.logs.push({ ...entry, unchanged: true, etag: media.etag });
           continue;
         }
-        const media = await this.mediaGet(entry.fileId);
         const parsed = parseLogFile(media.text);
-        out.logs.push({ ...entry, events: parsed.events, malformed: parsed.malformed, etag: meta.etag, unchanged: false });
+        out.logs.push({ ...entry, events: parsed.events, malformed: parsed.malformed, etag: media.etag, unchanged: false });
         out.malformed += parsed.malformed;
       } catch (err) {
-        if (err.status === 404) continue; // deleted between list and get
+        if (err.status === 404) continue; // deleted or trashed — skip
         throw err;
       }
     }

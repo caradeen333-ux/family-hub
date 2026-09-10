@@ -78,24 +78,27 @@ export function buildView(events, { now }) {
   const pollClosed = new Map(); // pollId → winner (applied after the loop)
   const config = new Map();
   const members = new Map();
+  const lists = new Map(); // listId → {listId, name, emoji, author, ts}
+  const items = new Map(); // itemId → {itemId, listId, text, qty, done, author, ts}
 
   for (const ev of keyWinners.values()) {
     switch (ev.type) {
       case 'note.upsert':
-        notes.set(ev.payload.noteId, ev.payload);
+        // enrich with the event's author/ts — the UI needs both
+        notes.set(ev.payload.noteId, { ...ev.payload, author: ev.author, ts: ev.ts });
         break;
       case 'note.tombstone':
         notes.delete(ev.payload.noteId);
         break;
       case 'chore.upsert':
-        chores.set(ev.payload.choreId, ev.payload);
+        chores.set(ev.payload.choreId, { ...ev.payload, author: ev.author, ts: ev.ts });
         break;
       case 'chore.tombstone':
         chores.delete(ev.payload.choreId);
         break;
       case 'poll.created': {
         const votes = pollStates.get(ev.payload.pollId)?.votes ?? new Map();
-        pollStates.set(ev.payload.pollId, { poll: ev.payload, votes });
+        pollStates.set(ev.payload.pollId, { poll: { ...ev.payload, author: ev.author }, votes });
         break;
       }
       case 'poll.closed':
@@ -105,7 +108,8 @@ export function buildView(events, { now }) {
         break;
       case 'vote.cast': {
         const state = pollStates.get(ev.payload.pollId);
-        if (state) state.votes.set(ev.author, ev.payload.optionId);
+        // votes: author → {optionId, note} (note optional, survives re-votes)
+        if (state) state.votes.set(ev.author, { optionId: ev.payload.optionId, note: ev.payload.note ?? '' });
         break;
       }
       case 'config.upsert':
@@ -113,6 +117,19 @@ export function buildView(events, { now }) {
         break;
       case 'member.joined':
         members.set(ev.payload.key, ev.payload);
+        break;
+      case 'list.upsert':
+        lists.set(ev.payload.listId, { ...ev.payload, author: ev.author, ts: ev.ts });
+        break;
+      case 'list.tombstone':
+        lists.delete(ev.payload.listId);
+        // items in a deleted list are unreachable anyway — tombstones below
+        break;
+      case 'item.upsert':
+        items.set(ev.payload.itemId, { ...ev.payload, author: ev.author, ts: ev.ts });
+        break;
+      case 'item.tombstone':
+        items.delete(ev.payload.itemId);
         break;
     }
   }
@@ -123,8 +140,8 @@ export function buildView(events, { now }) {
   for (const [pollId, state] of pollStates) {
     const tallies = new Map();
     for (const option of state.poll.options ?? []) tallies.set(option.id, 0);
-    for (const optionId of state.votes.values()) {
-      tallies.set(optionId, (tallies.get(optionId) ?? 0) + 1);
+    for (const vote of state.votes.values()) {
+      tallies.set(vote.optionId, (tallies.get(vote.optionId) ?? 0) + 1);
     }
     polls.set(pollId, {
       poll: state.poll,
@@ -134,7 +151,7 @@ export function buildView(events, { now }) {
     });
   }
 
-  return { notes, chores, polls, config, members, now };
+  return { notes, chores, polls, config, members, lists, items, now };
 }
 
 // Convenience: merge full parsed logs into a view. events are flat arrays of

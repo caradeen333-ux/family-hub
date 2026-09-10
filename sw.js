@@ -1,22 +1,37 @@
 // sw.js — Service Worker for Family Hub PWA
-// Caches app shell for offline, serves cached content, handles background sync
+// Caches the app shell for offline, stale-while-revalidate, never caches
+// Google API calls (they carry auth headers).
 
-const CACHE_NAME = 'family-hub-v5';
+const CACHE_NAME = 'family-hub-v6';
 const APP_SHELL = [
-  '.',
-  'index.html',
-  'css/app.css',
-  'js/config.js',
-  'js/cache.js',
-  'js/auth.js',
-  'js/calendar.js',
-  'js/notes.js',
-  'js/config-sync.js',
-  'js/ui.js',
-  'js/app.js',
-  'manifest.json',
-  'icons/icon-192.png',
-  'icons/icon-512.png',
+  './',
+  './index.html',
+  './css/app.css',
+  './js/version.js',
+  './js/config.js',
+  './js/app.js',
+  './js/ui.js',
+  './js/calendar.js',
+  './js/notes.js',
+  './js/votes.js',
+  './js/chores.js',
+  './js/shopping.js',
+  './js/provisioning.js',
+  './js/auth/oauth.js',
+  './js/auth/token.js',
+  './js/auth/token-store.js',
+  './js/storage/adapter.js',
+  './js/storage/drive-adapter.js',
+  './js/storage/webdav-adapter.js',
+  './js/storage/log-format.js',
+  './js/storage/merge.js',
+  './js/storage/local-db.js',
+  './js/sync/sync-engine.js',
+  './js/testing/clock.js',
+  './silent.html',
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
 ];
 
 // Install: cache the app shell
@@ -34,70 +49,47 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
-      );
+      return Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)));
     }).then(() => self.clients.claim())
   );
 });
 
-// Fetch: cache-first for shell, network-first for API calls
-// Skip caching on localhost so dev changes appear immediately
+const GOOGLE_HOSTS = ['googleapis.com', 'accounts.google.com'];
+
+// Fetch: stale-while-revalidate for shell, network-only for Google APIs
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Skip caching on localhost — always network-first for development
-  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-    return; // Let browser handle normally
-  }
+  // Dev servers: let the browser handle normally
+  if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return;
 
-  // Don't cache Google API calls
-  if (url.hostname.includes('googleapis.com') ||
-      url.hostname.includes('oauth2.googleapis.com') ||
-      url.hostname.includes('accounts.google.com')) {
-    return; // Let browser handle normally
-  }
+  // Google APIs + OAuth: never cache, never intercept
+  if (GOOGLE_HOSTS.some((h) => url.hostname.includes(h))) return;
 
-  // Cache-first for app shell
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      if (cached) {
-        // Stale-while-revalidate: return cached, update in background
-        const fetchPromise = fetch(event.request).then((response) => {
+      const network = fetch(event.request)
+        .then((response) => {
           if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           }
           return response;
-        }).catch(() => null);
+        })
+        .catch(() => null);
+
+      if (cached) {
+        network; // stale-while-revalidate: update in background
         return cached;
       }
-      // Not in cache: fetch from network
-      return fetch(event.request).then((response) => {
-        if (!response.ok) return response;
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      }).catch(() => {
+      return network.then((response) => {
+        if (response) return response;
         // Offline fallback for HTML: return cached index.html
         if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('index.html');
+          return caches.match('./index.html');
         }
         return new Response('Offline', { status: 503 });
       });
     })
   );
-});
-
-// Background sync for offline writes
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-notes') {
-    event.waitUntil(
-      self.clients.matchAll().then((clients) => {
-        clients.forEach((client) => {
-          client.postMessage({ type: 'sync-notes' });
-        });
-      })
-    );
-  }
 });
