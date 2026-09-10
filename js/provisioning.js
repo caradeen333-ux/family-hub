@@ -65,10 +65,11 @@ export async function provisionFirstUser(adapter, { name, email, clock = () => D
   return { folderId, dirFileId, logFileId, memberKey };
 }
 
-// A new member joins via the invite link
+// A new member joins via the invite link. The adapter resolves the final
+// member key (collisions get a numeric suffix) — always use the returned key.
 export async function joinFamily(adapter, { invite, name, email, clock = () => Date.now() }) {
   const memberKey = deriveMemberKey(email);
-  const { folderId, dirFileId, logFileId } = await adapter.join({
+  const { folderId, dirFileId, logFileId, memberKey: actualKey } = await adapter.join({
     folderId: invite.folderId,
     dirFileId: invite.dirFileId,
     memberKey,
@@ -77,9 +78,9 @@ export async function joinFamily(adapter, { invite, name, email, clock = () => D
   });
 
   const events = [
-    makeEvent('member.joined', memberKey, { key: memberKey, name, email }, { now: clock() }),
+    makeEvent('member.joined', actualKey, { key: actualKey, name, email }, { now: clock() }),
   ];
-  await adapter.appendToMyLog({ folderId, dirFileId, memberKey, name, email, events });
+  await adapter.appendToMyLog({ folderId, dirFileId, memberKey: actualKey, name, email, events });
 
-  return { folderId, dirFileId, logFileId, memberKey };
+  return { folderId, dirFileId, logFileId, memberKey: actualKey };
 }

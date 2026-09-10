@@ -90,9 +90,29 @@ test('POL-07 account switcher lists and switches accounts', async ({ page }) => 
   });
   await page.click('#btn-settings');
   await expect(page.locator('#auth-area .member-row', { hasText: 'avery@test.local' })).toBeVisible();
-  await page.click('#auth-area .btn-xs'); // Switch
-  const active = await page.evaluate(() => localStorage.getItem('fh_activeAccount'));
-  expect(active).toBe('avery@test.local');
+  await page.click('#auth-area .btn-xs'); // Switch (triggers reload)
+  await page.waitForFunction(() => localStorage.getItem('fh_activeAccount') === 'avery@test.local');
+  // And the app reboots under the new account (header shows Avery's initial)
+  await expect(page.locator('#app')).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator('#account-avatar')).toHaveText('A');
+});
+
+test('POL-08 export downloads a JSON snapshot', async ({ page }) => {
+  await boot(page);
+  await page.evaluate(async () => {
+    await window.__fhTest.notes.addNote(window.__fhTest.engine, { text: 'exported note' });
+  });
+  const downloadPromise = page.waitForEvent('download');
+  await page.click('#btn-settings');
+  await page.click('#btn-export');
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/^family-hub-export-\d{4}-\d{2}-\d{2}\.json$/);
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  expect(data.app).toBe('Family Hub');
+  expect(data.notes.some((n) => n.text === 'exported note')).toBe(true);
 });
 
 test('POL-06 creator closes a poll with the leading option as winner', async ({ page }) => {

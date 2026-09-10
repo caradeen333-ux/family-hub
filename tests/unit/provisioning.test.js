@@ -19,7 +19,7 @@ function fakeAdapter() {
     },
     async join({ folderId, dirFileId, memberKey, name, email }) {
       calls.push(['join', { folderId, dirFileId, memberKey, name, email }]);
-      return { folderId, dirFileId, logFileId: 'LOGFILE' };
+      return { folderId, dirFileId, logFileId: 'LOGFILE', memberKey };
     },
     async appendToMyLog(args) {
       calls.push(['appendToMyLog', args]);
@@ -81,4 +81,21 @@ test('joinFamily sequences join → member.joined', async () => {
   const events = adapter.calls[1][1].events;
   assert.equal(events.length, 1);
   assert.equal(events[0].type, 'member.joined');
+});
+
+test('joinFamily uses the adapter-resolved key when collisions suffix it', async () => {
+  const adapter = fakeAdapter();
+  adapter.join = async ({ memberKey }) => ({ folderId: 'F', dirFileId: 'D', logFileId: 'L', memberKey: memberKey + '2' });
+  const result = await joinFamily(adapter, {
+    invite: { folderId: 'FOLDER', dirFileId: 'DIRFILE' },
+    name: 'Charlie',
+    email: 'charlie.d@x.com',
+    clock: () => NOW,
+  });
+  assert.equal(result.memberKey, 'charlied2');
+  // The member.joined event must carry the FINAL key, not the derived one
+  // (the overridden join doesn't record itself — the append is calls[0])
+  const events = adapter.calls.find((c) => c[0] === 'appendToMyLog')[1].events;
+  assert.equal(events[0].payload.key, 'charlied2');
+  assert.equal(events[0].author, 'charlied2');
 });

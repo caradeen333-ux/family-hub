@@ -131,6 +131,43 @@ export function confirmDialog(message) {
   });
 }
 
+// Generic text prompt modal. Resolves with the entered string, or null.
+export function promptDialog(message, { placeholder = '', inputType = 'text' } = {}) {
+  return new Promise((resolve) => {
+    const form = $('#form-prompt');
+    const input = $('#prompt-input');
+    $('#prompt-message').textContent = message;
+    input.type = inputType;
+    input.placeholder = placeholder;
+    input.value = '';
+    form.reset?.();
+
+    const done = (value) => {
+      cleanup();
+      closeModal('modal-prompt');
+      resolve(value);
+    };
+    const onSubmit = (e) => {
+      e.preventDefault();
+      done(input.value.trim() || null);
+    };
+    const onCancel = () => done(null);
+    const onOverlay = (e) => {
+      if (e.target.id === 'modal-prompt') onCancel();
+    };
+    const cleanup = () => {
+      form.removeEventListener('submit', onSubmit);
+      document.querySelectorAll('[data-close="modal-prompt"]').forEach((b) => b.removeEventListener('click', onCancel));
+      document.getElementById('modal-prompt').removeEventListener('click', onOverlay);
+    };
+    form.addEventListener('submit', onSubmit);
+    document.querySelectorAll('[data-close="modal-prompt"]').forEach((b) => b.addEventListener('click', onCancel));
+    document.getElementById('modal-prompt').addEventListener('click', onOverlay);
+    openModal('modal-prompt');
+    input.focus();
+  });
+}
+
 export function wireModalClosers() {
   document.querySelectorAll('[data-close]').forEach((b) => {
     b.addEventListener('click', () => closeModal(b.dataset.close));

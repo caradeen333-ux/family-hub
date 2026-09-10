@@ -89,9 +89,18 @@ async function afterSync() {
     const invite = parseInvite();
     if (invite) ui.showProvisionScreen({ mode: 'join', invite });
     else ui.showProvisionScreen({ mode: 'provision' });
+    prefillProvisionName();
     return;
   }
   await loadCalendar();
+}
+
+// Flawless onboarding: the name field is already filled from their Google
+// profile — one less typing step for a non-technical family member
+function prefillProvisionName() {
+  const account = getActiveAccount();
+  const nameEl = $('#provision-name');
+  if (account?.name && !nameEl.value) nameEl.value = account.name.split(' ')[0];
 }
 
 async function bootAfterSignIn(invite) {
@@ -179,12 +188,25 @@ async function handleProvisionSubmit(e) {
   try {
     const invite = parseInvite();
     let dirState;
+
     if (invite) {
-      const result = await joinFamily(engine.adapter, {
-        invite, name, email: account.email, clock: () => clock.now(),
-      });
-      dirState = { folderId: result.folderId, dirFileId: result.dirFileId, memberKey: result.memberKey, name, email: account.email };
-      ui.toast('Welcome to the family! 🎉', 'success');
+      // Already a member (re-opened an old link / fresh device)? Just enter.
+      // Check the family's dir.json — the local view may be empty on a new
+      // device, but the directory knows who belongs.
+      const dir = await engine.adapter.readDir(invite.dirFileId).catch(() => null);
+      const already = dir?.data?.members
+        ? Object.entries(dir.data.members).find(([, m]) => m.email === account.email)
+        : null;
+      if (already) {
+        dirState = { folderId: invite.folderId, dirFileId: invite.dirFileId, memberKey: already[0], name, email: account.email };
+        ui.toast("You're already in this family — welcome back! 🎉", 'success');
+      } else {
+        const result = await joinFamily(engine.adapter, {
+          invite, name, email: account.email, clock: () => clock.now(),
+        });
+        dirState = { folderId: result.folderId, dirFileId: result.dirFileId, memberKey: result.memberKey, name, email: account.email };
+        ui.toast('Welcome to the family! 🎉', 'success');
+      }
     } else {
       const result = await provisionFirstUser(engine.adapter, {
         name, email: account.email, clock: () => clock.now(),
@@ -193,6 +215,9 @@ async function handleProvisionSubmit(e) {
       updateAccount(account.email, { driveFolderId: result.folderId, dirFileId: result.dirFileId });
       ui.toast('Family hub created 🎉', 'success');
       ui.showInviteLink(buildInviteLink({ folderId: result.folderId, dirFileId: result.dirFileId }));
+      // Prefill the invite email flow with the founder's own email as the example
+      $('#invite-email').value = '';
+      $('#invite-email').focus();
     }
     await engine.setDirState(dirState);
     await engine.run();
@@ -203,7 +228,12 @@ async function handleProvisionSubmit(e) {
       renderAll();
     }
   } catch (err) {
-    ui.toast(`Setup failed: ${err.message}`, 'error');
+    if (err.friendly) {
+      ui.toast(err.message, 'error');
+    } else {
+      console.error('provision failed', err);
+      ui.toast('Setup failed — check your connection and try again', 'error');
+    }
   } finally {
     btn.disabled = false;
   }
@@ -278,6 +308,7 @@ function wireStaticControls() {
   });
   $('#btn-copy-invite').addEventListener('click', async () => {
     const input = $('#invite-link');
+    if (!input.value) return ui.toast('Invite someone first — enter their email above', 'error');
     input.select();
     try {
       await navigator.clipboard.writeText(input.value);
@@ -286,16 +317,51 @@ function wireStaticControls() {
       ui.toast('Select and copy manually', 'error');
     }
   });
-  $('#btn-invite').addEventListener('click', () => {
+  // The full invite flow: grant Drive access to the invitee's email, THEN
+  // hand over the link. Order matters — a link without access is a dead end.
+  const inviteWithEmail = async (email, { fromProvisionScreen = false } = {}) => {
     if (!engine.dirState) return ui.toast('Set up the family first', 'error');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return ui.toast('That email doesn\'t look right', 'error');
+    try {
+      await ui.busy(fromProvisionScreen ? $('#btn-share-email') : $('#btn-invite'), engine.adapter.shareWith({
+        folderId: engine.dirState.folderId,
+        email,
+      }), { label: 'Sharing…' });
+    } catch (err) {
+      console.error('shareWith failed', err);
+      return ui.toast('Could not share the folder — check the email and try again', 'error');
+    }
     const link = buildInviteLink({ folderId: engine.dirState.folderId, dirFileId: engine.dirState.dirFileId });
+    if (fromProvisionScreen) $('#invite-link').value = link;
     navigator.clipboard?.writeText(link).catch(() => {});
-    ui.toast('Invite link copied — share it!', 'success');
+    ui.toast(`Folder shared with ${email} — invite link copied`, 'success');
+  };
+  $('#btn-share-email').addEventListener('click', async () => {
+    const input = $('#invite-email');
+    const email = input.value.trim();
+    if (!email) return ui.toast('Enter their Google email first', 'error');
+    input.value = '';
+    await inviteWithEmail(email, { fromProvisionScreen: true });
+  });
+  $('#invite-email').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('#btn-share-email').click();
+    }
+  });
+  $('#btn-invite').addEventListener('click', async () => {
+    const email = await ui.promptDialog('Invite a family member — enter their Google email. We\'ll give them access to the family folder and copy you an invite link.', { placeholder: 'their.name@gmail.com', inputType: 'email' });
+    if (!email) return;
+    await inviteWithEmail(email);
   });
   $('#setting-alwaysontop')?.addEventListener('change', (e) => {
     window.__electron?.setAlwaysOnTop(e.target.checked);
   });
   $('#btn-install')?.addEventListener('click', installPrompt?.prompt?.bind(installPrompt));
+  $('#btn-export')?.addEventListener('click', () => {
+    exportData();
+    ui.toast('Export downloaded', 'success');
+  });
 }
 
 let installPrompt = null;
@@ -437,6 +503,7 @@ function wireAppEvents() {
   document.addEventListener('fh:vote', async (e) => {
     const author = engine.activeMemberKey();
     await votesMod.castVote(engine, e.detail.pollId, e.detail.optionId, author);
+    ui.toast('Vote recorded ✓', 'success');
   });
   document.addEventListener('fh:dinner-poll', async () => {
     await votesMod.startDinnerPoll(engine, { author: engine.activeMemberKey() });
@@ -572,6 +639,37 @@ async function updateSyncStatus() {
   const pending = await localDb.getUnconfirmed().catch(() => []);
   if (engine.lastSyncAt) ui.setSyncStatus('synced', pending.length ? `Up to date · ${pending.length} pending` : 'Up to date');
   else ui.setSyncStatus('working', 'Syncing…');
+}
+
+// ---------- data export ----------
+
+function exportData() {
+  if (!engine.view) return;
+  const view = engine.view;
+  const data = {
+    app: 'Family Hub',
+    exportedAt: new Date(clock.now()).toISOString(),
+    version: window.APP_VERSION ?? 'dev',
+    members: Object.fromEntries([...view.members.entries()].map(([k, m]) => [k, { name: m.name, email: m.email }])),
+    notes: [...view.notes.values()],
+    chores: [...view.chores.values()],
+    polls: [...view.polls.values()].map(({ poll, tallies, votes, closedWinner }) => ({
+      ...poll,
+      closedWinner,
+      tallies: Object.fromEntries(tallies),
+      votes: Object.fromEntries(votes),
+    })),
+    config: Object.fromEntries(view.config),
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `family-hub-export-${new Date(clock.now()).toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 // ---------- event form ----------

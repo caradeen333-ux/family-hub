@@ -40,11 +40,16 @@
       </div>
     </form>
     <div id="provision-invite" class="hidden">
-      <p class="auth-tagline">Share this with your family — each person signs in with their own Google account:</p>
+      <p class="auth-tagline"><strong>Now invite your family.</strong> Enter each person's Google email — we grant them access to the family folder, then give you a link to share:</p>
       <div class="invite-row">
-        <input type="text" id="invite-link" readonly>
+        <input type="email" id="invite-email" placeholder="their.name@gmail.com" autocomplete="email">
+        <button id="btn-share-email" class="btn-primary btn-sm">Invite</button>
+      </div>
+      <div class="invite-row invite-link-row">
+        <input type="text" id="invite-link" readonly placeholder="Invite link appears here — copy and share it">
         <button id="btn-copy-invite" class="btn-secondary">Copy</button>
       </div>
+      <p class="auth-fine">Each person signs in with their own Google account — no shared passwords, ever. Anyone without access just sees a friendly "ask your family" message.</p>
       <div class="form-actions form-actions-center">
         <button id="btn-enter-hub" class="btn-primary btn-lg">Enter Family Hub</button>
       </div>
@@ -151,7 +156,7 @@
   </nav>
 
   <footer id="footer">
-    <span class="sync-status" id="sync-status"><span class="sync-dot"></span><span id="sync-text">Loading…</span></span>
+    <span class="sync-status" id="sync-status" aria-live="polite"><span class="sync-dot"></span><span id="sync-text">Loading…</span></span>
   </footer>
 </div>
 
@@ -290,6 +295,20 @@ Option 2</textarea>
   </div>
 </div>
 
+<!-- Prompt (invite email etc.) -->
+<div id="modal-prompt" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal modal-sm">
+    <p id="prompt-message"></p>
+    <form id="form-prompt">
+      <input type="email" id="prompt-input" placeholder="name@gmail.com" autocomplete="email" required>
+      <div class="form-actions">
+        <button type="button" class="btn-cancel" data-close="modal-prompt">Cancel</button>
+        <button type="submit" class="btn-primary">Invite</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Settings -->
 <div id="modal-settings" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-settings-title">
   <div class="modal modal-wide">
@@ -314,8 +333,13 @@ Option 2</textarea>
         <label class="toggle-label"><input type="checkbox" id="setting-alwaysontop"> Desktop: Always on top</label>
       </section>
       <section class="settings-section">
+        <h3>Data</h3>
+        <p class="about-text">Your family data lives in your own Google Drive. Export a copy any time — it's yours.</p>
+        <button id="btn-export" class="btn-secondary btn-sm">⬇ Export data</button>
+      </section>
+      <section class="settings-section">
         <h3>About</h3>
-        <p class="about-text">Family Hub <span class="version-text" id="app-version"></span> — your data lives in your Google Drive. Export anytime.</p>
+        <p class="about-text">Family Hub <span class="version-text" id="app-version"></span> — no servers, no lock-in.</p>
         <p class="about-text"><a href="https://github.com/caradeen333-ux/family-hub" target="_blank" rel="noopener">GitHub</a></p>
         <button id="btn-install" class="btn-secondary hidden">📲 Install App</button>
       </section>

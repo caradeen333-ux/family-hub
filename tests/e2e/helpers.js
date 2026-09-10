@@ -11,11 +11,16 @@ export function fakeIdToken({ sub = 'abc123', email = 'mike@test.local', name = 
 
 export const TEST_EMAIL = 'mike@test.local';
 
-// Seed accounts into localStorage before the app boots
+// Seed accounts into localStorage before the app boots.
+// Once-guarded via sessionStorage: addInitScript re-runs on EVERY navigation,
+// including the app's own reloads — re-seeding there would clobber runtime
+// changes like an account switch.
 export function seedAccounts(accounts, active = TEST_EMAIL) {
   return async ({ context }) => {
     await context.addInitScript(({ accounts, active }) => {
       try {
+        if (sessionStorage.getItem('__fhSeeded')) return;
+        sessionStorage.setItem('__fhSeeded', '1');
         localStorage.setItem('fh_accounts', JSON.stringify(accounts));
         if (active) localStorage.setItem('fh_activeAccount', active);
       } catch { /* cross-origin frame — skip */ }
@@ -72,9 +77,13 @@ export function mockDrive(page) {
   const calls = [];
 
   const listQuery = (q) => {
-    const out = [...files.values()];
+    let out = [...files.values()];
     const parent = /'([^']+)' in parents/.exec(q ?? '');
-    if (parent) return out.filter((f) => f.parents?.includes(parent[1]));
+    if (parent) out = out.filter((f) => f.parents?.includes(parent[1]));
+    const prop = /appProperties has \{ key='([^']+)' and value='([^']+)' \}/.exec(q ?? '');
+    if (prop) out = out.filter((f) => f.appProperties?.[prop[1]] === prop[2]);
+    const name = /name = '([^']+)'/.exec(q ?? '');
+    if (name) out = out.filter((f) => f.name === name[1]);
     return out;
   };
 
@@ -93,6 +102,12 @@ export function mockDrive(page) {
     if (path === '/drive/v3/files' && req.method() === 'GET') {
       const files_ = listQuery(url.searchParams.get('q')).map((f) => ({ id: f.id, name: f.name, etag: f.etag, trashed: false }));
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ files: files_ }) });
+    }
+
+    const perm = /^\/drive\/v3\/files\/([^/]+)\/permissions$/.exec(path);
+    if (perm && req.method() === 'POST') {
+      calls.push({ method: 'permission', fileId: perm[1], body: JSON.parse(req.postData() ?? '{}') });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: '{"id":"perm1"}' });
     }
 
     const m = /^\/drive\/v3\/files\/([^/]+)$/.exec(path);
@@ -125,10 +140,13 @@ export function mockDrive(page) {
   return { files, calls, routeAll, seed };
 }
 
-// Seed dirState into IndexedDB before boot
+// Seed dirState into IndexedDB before boot (once per session — same
+// reload-clobbering concern as seedAccounts)
 export function seedDirState(dirState, knownEtags = {}) {
   return async ({ context }) => {
     await context.addInitScript(({ dirState, knownEtags }) => {
+      if (sessionStorage.getItem('__fhDirStateSeeded')) return;
+      sessionStorage.setItem('__fhDirStateSeeded', '1');
       const req = indexedDB.open('family-hub-local', 1);
       req.onupgradeneeded = () => {
         const db = req.result;

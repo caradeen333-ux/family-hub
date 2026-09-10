@@ -187,16 +187,39 @@ export class DriveAdapter {
 
   // Joining member: the files.get below is the drive.file "open" gesture.
   // Registers own member entry + current month's log into dir.json.
+  // Two friends of flawless onboarding:
+  //  - the open-gesture failing means the family hasn't shared the folder
+  //    with this account yet — throw a friendly, human-readable error
+  //  - a member key that collides with an existing member (two mikes) gets an
+  //    automatic numeric suffix instead of failing
   async join({ folderId, dirFileId, memberKey, name, email }) {
-    await this.getMetadata(dirFileId); // open gesture — throws if not granted
+    try {
+      await this.getMetadata(dirFileId); // open gesture
+    } catch (err) {
+      if (err.status === 404 || err.status === 403) {
+        const friendly = new Error(
+          `This family hasn't added your account yet. Ask them to invite you with this exact Google email: ${email}`
+        );
+        friendly.friendly = true;
+        throw friendly;
+      }
+      throw err;
+    }
+
+    // Collision-proof the member key (suffix 2, 3, … until free)
+    const dir = await this.readDir(dirFileId);
+    let key = memberKey;
+    const taken = (k) => Boolean(dir?.data?.members?.[k]);
+    for (let n = 2; taken(key); n++) key = `${memberKey}${n}`;
+
     const month = this.currentMonth();
     const logFile = await this.createFile({
-      name: logFileName(memberKey, month),
+      name: logFileName(key, month),
       parents: [folderId],
-      appProperties: { [APP_FILE_PROP]: memberKey },
+      appProperties: { [APP_FILE_PROP]: key },
     });
-    await this.registerFiles({ dirFileId, memberKey, name, email, files: { [this.monthKey(month)]: logFile.id } });
-    return { folderId, dirFileId, logFileId: logFile.id };
+    await this.registerFiles({ dirFileId, memberKey: key, name, email, files: { [this.monthKey(month)]: logFile.id } });
+    return { folderId, dirFileId, logFileId: logFile.id, memberKey: key };
   }
 
   // ---- discovery ----
